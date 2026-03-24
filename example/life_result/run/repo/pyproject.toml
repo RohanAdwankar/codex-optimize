@@ -1,0 +1,13 @@
+[project]
+name = "codex-optimize"
+version = "0.1.0"
+description = "Optimize a software metric with Codex, git worktrees, and Docker"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+]
+
+[project.scripts]
+codopt = "codopt.cli:main"

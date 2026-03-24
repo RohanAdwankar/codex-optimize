@@ -1,0 +1,95 @@
+diff --git a/example/life/life.py b/example/life/life.py
+index 4b59908..04c5b94 100644
+--- a/example/life/life.py
++++ b/example/life/life.py
+@@ -71,6 +71,75 @@ def _step_rows(rows: list[list[int]], width: int, height: int, out_rows: list[li
+     return out_rows
+ 
+ 
++def _seed_bitrows(width: int, height: int, seed: int) -> list[int]:
++    state = seed & 0x7FFFFFFF
++    bitrows: list[int] = []
++    for _ in range(height):
++        row_bits = 0
++        bit = 1
++        for _ in range(width):
++            state = (1103515245 * state + 12345) & 0x7FFFFFFF
++            if state % 5 < 2:
++                row_bits |= bit
++            bit <<= 1
++        bitrows.append(row_bits)
++    return bitrows
++
++
++def _step_bitrows(bitrows: list[int], width: int, height: int, out_rows: list[int]) -> list[int]:
++    mask = (1 << width) - 1
++    last_bit = width - 1
++
++    for y in range(height):
++        top = bitrows[y - 1]
++        mid = bitrows[y]
++        bot = bitrows[(y + 1) % height]
++
++        top_left = ((top << 1) & mask) | (top >> last_bit)
++        top_right = (top >> 1) | ((top & 1) << last_bit)
++        mid_left = ((mid << 1) & mask) | (mid >> last_bit)
++        mid_right = (mid >> 1) | ((mid & 1) << last_bit)
++        bot_left = ((bot << 1) & mask) | (bot >> last_bit)
++        bot_right = (bot >> 1) | ((bot & 1) << last_bit)
++
++        bit0 = 0
++        bit1 = 0
++        bit2 = 0
++        bit3 = 0
++        for neighbors in (top_left, top, top_right, mid_left, mid_right, bot_left, bot, bot_right):
++            carry = neighbors
++            next_bit0 = bit0 ^ carry
++            carry = bit0 & carry
++            bit0 = next_bit0
++
++            next_bit1 = bit1 ^ carry
++            carry = bit1 & carry
++            bit1 = next_bit1
++
++            next_bit2 = bit2 ^ carry
++            carry = bit2 & carry
++            bit2 = next_bit2
++
++            bit3 ^= carry
++
++        exactly_three = bit1 & bit0 & ~(bit2 | bit3)
++        exactly_two = bit1 & ~bit0 & ~(bit2 | bit3)
++        out_rows[y] = exactly_three | (mid & exactly_two)
++
++    return out_rows
++
++
++def _checksum_bitrows(bitrows: list[int], width: int) -> int:
++    total = 0
++    modulo = 1_000_000_007
++    for row_bits in bitrows:
++        bit = 1
++        for _ in range(width):
++            total = (total * 131 + ((row_bits & bit) != 0)) % modulo
++            bit <<= 1
++    return total
++
++
+ def step_world(world: LifeWorld) -> LifeWorld:
+     width = world.width
+     height = world.height
+@@ -79,10 +148,9 @@ def step_world(world: LifeWorld) -> LifeWorld:
+ 
+ 
+ def run_simulation(width: int, height: int, steps: int, seed: int) -> int:
+-    world = LifeWorld.from_seed(width, height, seed)
+-    current_rows = world.rows
+-    next_rows = [[0] * width for _ in range(height)]
++    current_rows = _seed_bitrows(width, height, seed)
++    next_rows = [0] * height
+     for _ in range(steps):
+-        _step_rows(current_rows, width, height, next_rows)
++        _step_bitrows(current_rows, width, height, next_rows)
+         current_rows, next_rows = next_rows, current_rows
+-    return LifeWorld(width=width, height=height, rows=current_rows).checksum()
++    return _checksum_bitrows(current_rows, width)

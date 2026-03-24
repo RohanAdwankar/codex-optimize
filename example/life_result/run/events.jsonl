@@ -1,0 +1,27 @@
+{"timestamp": "2026-03-24T08:49:01.262777+00:00", "type": "run.prepared", "node_id": null, "message": "Prepared run root and UI", "details": {}}
+{"timestamp": "2026-03-24T08:49:02.334611+00:00", "type": "round.started", "node_id": null, "message": "Starting round 1", "details": {"parents": ["baseline"]}}
+{"timestamp": "2026-03-24T08:49:02.418046+00:00", "type": "node.started", "node_id": "r1_pbaseline_0", "message": "Started node r1_pbaseline_0", "details": {"branch": "r1-pbaseline-0"}}
+{"timestamp": "2026-03-24T08:49:02.497878+00:00", "type": "node.started", "node_id": "r1_pbaseline_1", "message": "Started node r1_pbaseline_1", "details": {"branch": "r1-pbaseline-1"}}
+{"timestamp": "2026-03-24T08:50:38.618158+00:00", "type": "node.completed", "node_id": "r1_pbaseline_1", "message": "Completed node r1_pbaseline_1", "details": {"score": 6667530.118326155}}
+{"timestamp": "2026-03-24T08:51:19.131694+00:00", "type": "node.completed", "node_id": "r1_pbaseline_0", "message": "Completed node r1_pbaseline_0", "details": {"score": 5740139.816667464}}
+{"timestamp": "2026-03-24T08:51:19.133090+00:00", "type": "round.ended", "node_id": null, "message": "Completed round 1", "details": {"survivors": ["r1_pbaseline_1", "r1_pbaseline_0"]}}
+{"timestamp": "2026-03-24T08:51:19.133639+00:00", "type": "round.started", "node_id": null, "message": "Starting round 2", "details": {"parents": ["r1_pbaseline_1", "r1_pbaseline_0"]}}
+{"timestamp": "2026-03-24T08:51:19.211089+00:00", "type": "node.started", "node_id": "r2_pr1_pbaseline_1_0", "message": "Started node r2_pr1_pbaseline_1_0", "details": {"branch": "r2-pr1-pbaseline-1-0"}}
+{"timestamp": "2026-03-24T08:51:19.293351+00:00", "type": "node.started", "node_id": "r2_pr1_pbaseline_1_1", "message": "Started node r2_pr1_pbaseline_1_1", "details": {"branch": "r2-pr1-pbaseline-1-1"}}
+{"timestamp": "2026-03-24T08:51:19.381743+00:00", "type": "node.started", "node_id": "r2_pr1_pbaseline_0_0", "message": "Started node r2_pr1_pbaseline_0_0", "details": {"branch": "r2-pr1-pbaseline-0-0"}}
+{"timestamp": "2026-03-24T08:51:19.475670+00:00", "type": "node.started", "node_id": "r2_pr1_pbaseline_0_1", "message": "Started node r2_pr1_pbaseline_0_1", "details": {"branch": "r2-pr1-pbaseline-0-1"}}
+{"timestamp": "2026-03-24T08:52:54.601900+00:00", "type": "node.completed", "node_id": "r2_pr1_pbaseline_1_1", "message": "Completed node r2_pr1_pbaseline_1_1", "details": {"score": 3893736.169062901}}
+{"timestamp": "2026-03-24T08:52:55.916851+00:00", "type": "node.completed", "node_id": "r2_pr1_pbaseline_0_0", "message": "Completed node r2_pr1_pbaseline_0_0", "details": {"score": 2996276.9568478027}}
+{"timestamp": "2026-03-24T08:53:37.104101+00:00", "type": "node.completed", "node_id": "r2_pr1_pbaseline_1_0", "message": "Completed node r2_pr1_pbaseline_1_0", "details": {"score": 7573424.491903827}}
+{"timestamp": "2026-03-24T08:53:37.869403+00:00", "type": "node.completed", "node_id": "r2_pr1_pbaseline_0_1", "message": "Completed node r2_pr1_pbaseline_0_1", "details": {"score": 22401860.580662128}}
+{"timestamp": "2026-03-24T08:53:37.871505+00:00", "type": "round.ended", "node_id": null, "message": "Completed round 2", "details": {"survivors": ["r2_pr1_pbaseline_0_1", "r2_pr1_pbaseline_1_0"]}}
+{"timestamp": "2026-03-24T08:53:37.872142+00:00", "type": "round.started", "node_id": null, "message": "Starting round 3", "details": {"parents": ["r2_pr1_pbaseline_0_1", "r2_pr1_pbaseline_1_0"]}}
+{"timestamp": "2026-03-24T08:53:37.951610+00:00", "type": "node.started", "node_id": "r3_pr2_pr1_pbaseline_0_1_0", "message": "Started node r3_pr2_pr1_pbaseline_0_1_0", "details": {"branch": "r3-pr2-pr1-pbaseline-0-1-0"}}
+{"timestamp": "2026-03-24T08:53:38.036569+00:00", "type": "node.started", "node_id": "r3_pr2_pr1_pbaseline_0_1_1", "message": "Started node r3_pr2_pr1_pbaseline_0_1_1", "details": {"branch": "r3-pr2-pr1-pbaseline-0-1-1"}}
+{"timestamp": "2026-03-24T08:53:38.128153+00:00", "type": "node.started", "node_id": "r3_pr2_pr1_pbaseline_1_0_0", "message": "Started node r3_pr2_pr1_pbaseline_1_0_0", "details": {"branch": "r3-pr2-pr1-pbaseline-1-0-0"}}
+{"timestamp": "2026-03-24T08:53:38.224766+00:00", "type": "node.started", "node_id": "r3_pr2_pr1_pbaseline_1_0_1", "message": "Started node r3_pr2_pr1_pbaseline_1_0_1", "details": {"branch": "r3-pr2-pr1-pbaseline-1-0-1"}}
+{"timestamp": "2026-03-24T08:55:04.845000+00:00", "type": "node.completed", "node_id": "r3_pr2_pr1_pbaseline_1_0_1", "message": "Completed node r3_pr2_pr1_pbaseline_1_0_1", "details": {"score": 4230493.267965793}}
+{"timestamp": "2026-03-24T08:55:13.412583+00:00", "type": "node.completed", "node_id": "r3_pr2_pr1_pbaseline_1_0_0", "message": "Completed node r3_pr2_pr1_pbaseline_1_0_0", "details": {"score": 3720291.4859245555}}
+{"timestamp": "2026-03-24T08:55:13.986627+00:00", "type": "node.completed", "node_id": "r3_pr2_pr1_pbaseline_0_1_0", "message": "Completed node r3_pr2_pr1_pbaseline_0_1_0", "details": {"score": 22583294.62596065}}
+{"timestamp": "2026-03-24T08:55:27.784520+00:00", "type": "node.completed", "node_id": "r3_pr2_pr1_pbaseline_0_1_1", "message": "Completed node r3_pr2_pr1_pbaseline_0_1_1", "details": {"score": 23967167.83435935}}
+{"timestamp": "2026-03-24T08:55:27.786823+00:00", "type": "round.ended", "node_id": null, "message": "Completed round 3", "details": {"survivors": ["r3_pr2_pr1_pbaseline_0_1_1", "r3_pr2_pr1_pbaseline_0_1_0"]}}

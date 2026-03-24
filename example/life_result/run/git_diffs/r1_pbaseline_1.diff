@@ -1,0 +1,116 @@
+diff --git a/example/life/life.py b/example/life/life.py
+index 0e89409..685cf34 100644
+--- a/example/life/life.py
++++ b/example/life/life.py
+@@ -17,7 +17,7 @@ class LifeWorld:
+             row: list[int] = []
+             for _ in range(width):
+                 state = (1103515245 * state + 12345) & 0x7FFFFFFF
+-                row.append(1 if state % 5 in (0, 1) else 0)
++                row.append(1 if state % 5 < 2 else 0)
+             rows.append(row)
+         return cls(width=width, height=height, rows=rows)
+ 
+@@ -29,30 +29,84 @@ class LifeWorld:
+         return total
+ 
+ 
++def _wrap_prev(size: int) -> list[int]:
++    return [size - 1 if index == 0 else index - 1 for index in range(size)]
++
++
++def _wrap_next(size: int) -> list[int]:
++    last = size - 1
++    return [0 if index == last else index + 1 for index in range(size)]
++
++
++def _step_rows(
++    rows: list[list[int]],
++    next_rows: list[list[int]],
++    x_prev: list[int],
++    x_next: list[int],
++    y_prev: list[int],
++    y_next: list[int],
++    width: int,
++    height: int,
++) -> list[list[int]]:
++    for y in range(height):
++        prev_row = rows[y_prev[y]]
++        row = rows[y]
++        next_row_src = rows[y_next[y]]
++        out_row = next_rows[y]
++        for x in range(width):
++            left = x_prev[x]
++            right = x_next[x]
++            neighbors = (
++                prev_row[left]
++                + prev_row[x]
++                + prev_row[right]
++                + row[left]
++                + row[right]
++                + next_row_src[left]
++                + next_row_src[x]
++                + next_row_src[right]
++            )
++            cell = row[x]
++            out_row[x] = 1 if neighbors == 3 or (cell and neighbors == 2) else 0
++    return next_rows
++
++
++def _checksum_rows(rows: list[list[int]]) -> int:
++    total = 0
++    for row in rows:
++        for value in row:
++            total = (total * 131 + value) % 1_000_000_007
++    return total
++
++
+ def step_world(world: LifeWorld) -> LifeWorld:
+-    next_rows: list[list[int]] = []
+     width = world.width
+     height = world.height
+-    for y in range(height):
+-        next_row: list[int] = []
+-        for x in range(width):
+-            neighbors = 0
+-            for dy in (-1, 0, 1):
+-                for dx in (-1, 0, 1):
+-                    if dx == 0 and dy == 0:
+-                        continue
+-                    neighbors += world.rows[(y + dy) % height][(x + dx) % width]
+-            cell = world.rows[y][x]
+-            if cell:
+-                next_row.append(1 if neighbors in (2, 3) else 0)
+-            else:
+-                next_row.append(1 if neighbors == 3 else 0)
+-        next_rows.append(next_row)
++    next_rows = [[0] * width for _ in range(height)]
++    _step_rows(
++        world.rows,
++        next_rows,
++        _wrap_prev(width),
++        _wrap_next(width),
++        _wrap_prev(height),
++        _wrap_next(height),
++        width,
++        height,
++    )
+     return LifeWorld(width=width, height=height, rows=next_rows)
+ 
+ 
+ def run_simulation(width: int, height: int, steps: int, seed: int) -> int:
+     world = LifeWorld.from_seed(width, height, seed)
++    rows = world.rows
++    next_rows = [[0] * width for _ in range(height)]
++    x_prev = _wrap_prev(width)
++    x_next = _wrap_next(width)
++    y_prev = _wrap_prev(height)
++    y_next = _wrap_next(height)
+     for _ in range(steps):
+-        world = step_world(world)
+-    return world.checksum()
++        rows, next_rows = (
++            _step_rows(rows, next_rows, x_prev, x_next, y_prev, y_next, width, height),
++            rows,
++        )
++    return _checksum_rows(rows)

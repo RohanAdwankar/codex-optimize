@@ -1,0 +1,146 @@
+diff --git a/example/life/life.py b/example/life/life.py
+index 04c5b94..436158a 100644
+--- a/example/life/life.py
++++ b/example/life/life.py
+@@ -89,11 +89,13 @@ def _seed_bitrows(width: int, height: int, seed: int) -> list[int]:
+ def _step_bitrows(bitrows: list[int], width: int, height: int, out_rows: list[int]) -> list[int]:
+     mask = (1 << width) - 1
+     last_bit = width - 1
++    rows = bitrows
++    out = out_rows
+ 
+     for y in range(height):
+-        top = bitrows[y - 1]
+-        mid = bitrows[y]
+-        bot = bitrows[(y + 1) % height]
++        top = rows[y - 1]
++        mid = rows[y]
++        bot = rows[(y + 1) % height]
+ 
+         top_left = ((top << 1) & mask) | (top >> last_bit)
+         top_right = (top >> 1) | ((top & 1) << last_bit)
+@@ -106,27 +108,107 @@ def _step_bitrows(bitrows: list[int], width: int, height: int, out_rows: list[in
+         bit1 = 0
+         bit2 = 0
+         bit3 = 0
+-        for neighbors in (top_left, top, top_right, mid_left, mid_right, bot_left, bot, bot_right):
+-            carry = neighbors
+-            next_bit0 = bit0 ^ carry
+-            carry = bit0 & carry
+-            bit0 = next_bit0
+-
+-            next_bit1 = bit1 ^ carry
+-            carry = bit1 & carry
+-            bit1 = next_bit1
+-
+-            next_bit2 = bit2 ^ carry
+-            carry = bit2 & carry
+-            bit2 = next_bit2
+-
+-            bit3 ^= carry
++        carry = top_left
++        next_bit0 = bit0 ^ carry
++        carry = bit0 & carry
++        bit0 = next_bit0
++        next_bit1 = bit1 ^ carry
++        carry = bit1 & carry
++        bit1 = next_bit1
++        next_bit2 = bit2 ^ carry
++        carry = bit2 & carry
++        bit2 = next_bit2
++        bit3 ^= carry
++
++        carry = top
++        next_bit0 = bit0 ^ carry
++        carry = bit0 & carry
++        bit0 = next_bit0
++        next_bit1 = bit1 ^ carry
++        carry = bit1 & carry
++        bit1 = next_bit1
++        next_bit2 = bit2 ^ carry
++        carry = bit2 & carry
++        bit2 = next_bit2
++        bit3 ^= carry
++
++        carry = top_right
++        next_bit0 = bit0 ^ carry
++        carry = bit0 & carry
++        bit0 = next_bit0
++        next_bit1 = bit1 ^ carry
++        carry = bit1 & carry
++        bit1 = next_bit1
++        next_bit2 = bit2 ^ carry
++        carry = bit2 & carry
++        bit2 = next_bit2
++        bit3 ^= carry
++
++        carry = mid_left
++        next_bit0 = bit0 ^ carry
++        carry = bit0 & carry
++        bit0 = next_bit0
++        next_bit1 = bit1 ^ carry
++        carry = bit1 & carry
++        bit1 = next_bit1
++        next_bit2 = bit2 ^ carry
++        carry = bit2 & carry
++        bit2 = next_bit2
++        bit3 ^= carry
++
++        carry = mid_right
++        next_bit0 = bit0 ^ carry
++        carry = bit0 & carry
++        bit0 = next_bit0
++        next_bit1 = bit1 ^ carry
++        carry = bit1 & carry
++        bit1 = next_bit1
++        next_bit2 = bit2 ^ carry
++        carry = bit2 & carry
++        bit2 = next_bit2
++        bit3 ^= carry
++
++        carry = bot_left
++        next_bit0 = bit0 ^ carry
++        carry = bit0 & carry
++        bit0 = next_bit0
++        next_bit1 = bit1 ^ carry
++        carry = bit1 & carry
++        bit1 = next_bit1
++        next_bit2 = bit2 ^ carry
++        carry = bit2 & carry
++        bit2 = next_bit2
++        bit3 ^= carry
++
++        carry = bot
++        next_bit0 = bit0 ^ carry
++        carry = bit0 & carry
++        bit0 = next_bit0
++        next_bit1 = bit1 ^ carry
++        carry = bit1 & carry
++        bit1 = next_bit1
++        next_bit2 = bit2 ^ carry
++        carry = bit2 & carry
++        bit2 = next_bit2
++        bit3 ^= carry
++
++        carry = bot_right
++        next_bit0 = bit0 ^ carry
++        carry = bit0 & carry
++        bit0 = next_bit0
++        next_bit1 = bit1 ^ carry
++        carry = bit1 & carry
++        bit1 = next_bit1
++        next_bit2 = bit2 ^ carry
++        carry = bit2 & carry
++        bit2 = next_bit2
++        bit3 ^= carry
+ 
+         exactly_three = bit1 & bit0 & ~(bit2 | bit3)
+         exactly_two = bit1 & ~bit0 & ~(bit2 | bit3)
+-        out_rows[y] = exactly_three | (mid & exactly_two)
++        out[y] = exactly_three | (mid & exactly_two)
+ 
+-    return out_rows
++    return out
+ 
+ 
+ def _checksum_bitrows(bitrows: list[int], width: int) -> int:

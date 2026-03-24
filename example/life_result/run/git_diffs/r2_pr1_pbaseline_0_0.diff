@@ -1,0 +1,76 @@
+diff --git a/example/life/life.py b/example/life/life.py
+index 4b59908..727150d 100644
+--- a/example/life/life.py
++++ b/example/life/life.py
+@@ -78,11 +78,65 @@ def step_world(world: LifeWorld) -> LifeWorld:
+     return LifeWorld(width=width, height=height, rows=_step_rows(world.rows, width, height, next_rows))
+ 
+ 
++def _checksum_flat(cells: bytearray) -> int:
++    total = 0
++    modulo = 1_000_000_007
++    for value in cells:
++        total = (total * 131 + value) % modulo
++    return total
++
++
+ def run_simulation(width: int, height: int, steps: int, seed: int) -> int:
+-    world = LifeWorld.from_seed(width, height, seed)
+-    current_rows = world.rows
+-    next_rows = [[0] * width for _ in range(height)]
++    size = width * height
++    current = bytearray(size)
++    state = seed & 0x7FFFFFFF
++    for index in range(size):
++        state = (1103515245 * state + 12345) & 0x7FFFFFFF
++        current[index] = 1 if state % 5 < 2 else 0
++
++    next_cells = bytearray(size)
++
++    if width == 1:
++        for _ in range(steps):
++            for y in range(height):
++                top = current[(y - 1) % height]
++                cell = current[y]
++                bot = current[(y + 1) % height]
++                neighbors = (top + cell + bot) * 3 - cell
++                next_cells[y] = 1 if neighbors == 3 or (cell and neighbors == 2) else 0
++            current, next_cells = next_cells, current
++        return _checksum_flat(current)
++
++    row_bases = [y * width for y in range(height)]
+     for _ in range(steps):
+-        _step_rows(current_rows, width, height, next_rows)
+-        current_rows, next_rows = next_rows, current_rows
+-    return LifeWorld(width=width, height=height, rows=current_rows).checksum()
++        for y, mid_base in enumerate(row_bases):
++            top_base = row_bases[y - 1]
++            bot_base = row_bases[(y + 1) % height]
++
++            top_last = top_base + width - 1
++            mid_last = mid_base + width - 1
++            bot_last = bot_base + width - 1
++
++            top_sum = current[top_last] + current[top_base] + current[top_base + 1]
++            mid_sum = current[mid_last] + current[mid_base] + current[mid_base + 1]
++            bot_sum = current[bot_last] + current[bot_base] + current[bot_base + 1]
++
++            for x in range(width):
++                index = mid_base + x
++                cell = current[index]
++                neighbors = top_sum + mid_sum + bot_sum - cell
++                next_cells[index] = 1 if neighbors == 3 or (cell and neighbors == 2) else 0
++
++                prev = x - 1
++                if prev < 0:
++                    prev = width - 1
++                right = x + 2
++                if right >= width:
++                    right -= width
++                top_sum += current[top_base + right] - current[top_base + prev]
++                mid_sum += current[mid_base + right] - current[mid_base + prev]
++                bot_sum += current[bot_base + right] - current[bot_base + prev]
++
++        current, next_cells = next_cells, current
++
++    return _checksum_flat(current)

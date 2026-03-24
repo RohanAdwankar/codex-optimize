@@ -1,0 +1,105 @@
+diff --git a/example/life/life.py b/example/life/life.py
+index 685cf34..36382b6 100644
+--- a/example/life/life.py
++++ b/example/life/life.py
+@@ -38,6 +38,52 @@ def _wrap_next(size: int) -> list[int]:
+     return [0 if index == last else index + 1 for index in range(size)]
+ 
+ 
++def _seed_cells(width: int, height: int, seed: int) -> list[int]:
++    state = seed & 0x7FFFFFFF
++    cells = [0] * (width * height)
++    index = 0
++    for _ in range(height):
++        for _ in range(width):
++            state = (1103515245 * state + 12345) & 0x7FFFFFFF
++            cells[index] = 1 if state % 5 < 2 else 0
++            index += 1
++    return cells
++
++
++def _step_cells(
++    cells: list[int],
++    next_cells: list[int],
++    x_prev: list[int],
++    x_next: list[int],
++    row_offsets: list[int],
++    y_prev: list[int],
++    y_next: list[int],
++    width: int,
++    height: int,
++) -> list[int]:
++    for y in range(height):
++        row_offset = row_offsets[y]
++        prev_offset = row_offsets[y_prev[y]]
++        next_offset = row_offsets[y_next[y]]
++        for x in range(width):
++            left = x_prev[x]
++            right = x_next[x]
++            index = row_offset + x
++            neighbors = (
++                cells[prev_offset + left]
++                + cells[prev_offset + x]
++                + cells[prev_offset + right]
++                + cells[row_offset + left]
++                + cells[row_offset + right]
++                + cells[next_offset + left]
++                + cells[next_offset + x]
++                + cells[next_offset + right]
++            )
++            cell = cells[index]
++            next_cells[index] = 1 if neighbors == 3 or (cell and neighbors == 2) else 0
++    return next_cells
++
++
+ def _step_rows(
+     rows: list[list[int]],
+     next_rows: list[list[int]],
+@@ -79,6 +125,13 @@ def _checksum_rows(rows: list[list[int]]) -> int:
+     return total
+ 
+ 
++def _checksum_cells(cells: list[int]) -> int:
++    total = 0
++    for value in cells:
++        total = (total * 131 + value) % 1_000_000_007
++    return total
++
++
+ def step_world(world: LifeWorld) -> LifeWorld:
+     width = world.width
+     height = world.height
+@@ -97,16 +150,26 @@ def step_world(world: LifeWorld) -> LifeWorld:
+ 
+ 
+ def run_simulation(width: int, height: int, steps: int, seed: int) -> int:
+-    world = LifeWorld.from_seed(width, height, seed)
+-    rows = world.rows
+-    next_rows = [[0] * width for _ in range(height)]
++    cells = _seed_cells(width, height, seed)
++    next_cells = [0] * (width * height)
+     x_prev = _wrap_prev(width)
+     x_next = _wrap_next(width)
++    row_offsets = [row_index * width for row_index in range(height)]
+     y_prev = _wrap_prev(height)
+     y_next = _wrap_next(height)
+     for _ in range(steps):
+-        rows, next_rows = (
+-            _step_rows(rows, next_rows, x_prev, x_next, y_prev, y_next, width, height),
+-            rows,
++        cells, next_cells = (
++            _step_cells(
++                cells,
++                next_cells,
++                x_prev,
++                x_next,
++                row_offsets,
++                y_prev,
++                y_next,
++                width,
++                height,
++            ),
++            cells,
+         )
+-    return _checksum_rows(rows)
++    return _checksum_cells(cells)

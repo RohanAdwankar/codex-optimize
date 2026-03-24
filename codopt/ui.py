@@ -132,6 +132,9 @@ def _git_diff_for_node(state: dict[str, Any], node_id: str) -> str:
     node = nodes.get(node_id)
     if not node:
         return ""
+    diff_file = node.get("diff_file")
+    if diff_file and Path(diff_file).exists():
+        return Path(diff_file).read_text(encoding="utf-8")
     parent_id = node.get("parent_id")
     commit_sha = node.get("commit_sha")
     if not parent_id or not commit_sha:

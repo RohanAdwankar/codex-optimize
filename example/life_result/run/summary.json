@@ -1,0 +1,40 @@
+{
+  "run_id": "run-a76l0x",
+  "repo_clone": "/Users/rohanadwankar/codex-optimize/example/life_result/run/repo",
+  "run_root": "/Users/rohanadwankar/codex-optimize/example/life_result/run",
+  "final_branches": [
+    "r3-pr2-pr1-pbaseline-0-1-1",
+    "r3-pr2-pr1-pbaseline-0-1-0"
+  ],
+  "winner": {
+    "node_id": "r3_pr2_pr1_pbaseline_0_1_1",
+    "branch_name": "r3-pr2-pr1-pbaseline-0-1-1",
+    "parent_id": "r2_pr1_pbaseline_0_1",
+    "depth": 3,
+    "worktree_path": "/private/tmp/codopt-depth3-final/worktrees/r3-pr2-pr1-pbaseline-0-1-1",
+    "trusted_commit": "ceee125e7ff7e0deaa5413568039da6889d43b61",
+    "thread_id": "019d1f0d-02b2-7143-9de7-aadae159439b",
+    "status": "completed",
+    "created_at": "2026-03-24T08:53:38.035893+00:00",
+    "started_at": "2026-03-24T08:53:38.035848+00:00",
+    "finished_at": "2026-03-24T08:55:27.783708+00:00",
+    "container_name": "codopt-run-a76l0x-r3-pr2-pr1-pbaseline-0-1-1",
+    "score": 23967167.83435935,
+    "metric_text": "{\n  \"score\": 23967167.83435935,\n  \"elapsed_seconds\": 0.03195037500017861,\n  \"total_cells\": 765760,\n  \"checksum\": 926619706\n}\n",
+    "test_passed": true,
+    "final_response": null,
+    "error": null,
+    "result_file": "/Users/rohanadwankar/codex-optimize/example/life_result/run/nodes/r3_pr2_pr1_pbaseline_0_1_1/result.json",
+    "log_file": "/Users/rohanadwankar/codex-optimize/example/life_result/run/nodes/r3_pr2_pr1_pbaseline_0_1_1/agent.jsonl",
+    "prompt_file": "/Users/rohanadwankar/codex-optimize/example/life_result/run/nodes/r3_pr2_pr1_pbaseline_0_1_1/prompt.txt",
+    "changed_files": [
+      "example/life/life.py",
+      "example/life/metric.json"
+    ],
+    "commit_sha": "ceee125e7ff7e0deaa5413568039da6889d43b61",
+    "pruned": false,
+    "surviving": true,
+    "diff_file": "/Users/rohanadwankar/codex-optimize/example/life_result/run/git_diffs/r3_pr2_pr1_pbaseline_0_1_1.diff"
+  },
+  "bundle_file": "/Users/rohanadwankar/codex-optimize/example/life_result/run.bundle"
+}

@@ -1,0 +1,99 @@
+diff --git a/example/life/life.py b/example/life/life.py
+index 04c5b94..e35401b 100644
+--- a/example/life/life.py
++++ b/example/life/life.py
+@@ -3,6 +3,32 @@ from __future__ import annotations
+ from dataclasses import dataclass
+ 
+ 
++MODULO = 1_000_000_007
++ALIVE_MULTIPLIER = 131
++BYTE_MULTIPLIER = pow(ALIVE_MULTIPLIER, 8, MODULO)
++BYTE_CHECKSUM = [0] * 256
++PARTIAL_CHECKSUMS = [[0]] * 8
++
++for value in range(256):
++    checksum = 0
++    bits = value
++    for _ in range(8):
++        checksum = (checksum * ALIVE_MULTIPLIER + (bits & 1)) % MODULO
++        bits >>= 1
++    BYTE_CHECKSUM[value] = checksum
++
++for width in range(1, 8):
++    table = [0] * (1 << width)
++    for value in range(1 << width):
++        checksum = 0
++        bits = value
++        for _ in range(width):
++            checksum = (checksum * ALIVE_MULTIPLIER + (bits & 1)) % MODULO
++            bits >>= 1
++        table[value] = checksum
++    PARTIAL_CHECKSUMS[width] = table
++
++
+ @dataclass(slots=True)
+ class LifeWorld:
+     width: int
+@@ -23,10 +49,9 @@ class LifeWorld:
+ 
+     def checksum(self) -> int:
+         total = 0
+-        modulo = 1_000_000_007
+         for row in self.rows:
+             for value in row:
+-                total = (total * 131 + value) % modulo
++                total = (total * ALIVE_MULTIPLIER + value) % MODULO
+         return total
+ 
+ 
+@@ -106,20 +131,13 @@ def _step_bitrows(bitrows: list[int], width: int, height: int, out_rows: list[in
+         bit1 = 0
+         bit2 = 0
+         bit3 = 0
+-        for neighbors in (top_left, top, top_right, mid_left, mid_right, bot_left, bot, bot_right):
+-            carry = neighbors
+-            next_bit0 = bit0 ^ carry
+-            carry = bit0 & carry
+-            bit0 = next_bit0
+-
+-            next_bit1 = bit1 ^ carry
+-            carry = bit1 & carry
+-            bit1 = next_bit1
+-
+-            next_bit2 = bit2 ^ carry
+-            carry = bit2 & carry
+-            bit2 = next_bit2
+-
++        for neighbors in top_left, top, top_right, mid_left, mid_right, bot_left, bot, bot_right:
++            carry = bit0 & neighbors
++            bit0 ^= neighbors
++            carry2 = bit1 & carry
++            bit1 ^= carry
++            carry = bit2 & carry2
++            bit2 ^= carry2
+             bit3 ^= carry
+ 
+         exactly_three = bit1 & bit0 & ~(bit2 | bit3)
+@@ -131,12 +149,16 @@ def _step_bitrows(bitrows: list[int], width: int, height: int, out_rows: list[in
+ 
+ def _checksum_bitrows(bitrows: list[int], width: int) -> int:
+     total = 0
+-    modulo = 1_000_000_007
++    full_bytes = width >> 3
++    remaining_bits = width & 7
++    partial_checksums = PARTIAL_CHECKSUMS[remaining_bits]
+     for row_bits in bitrows:
+-        bit = 1
+-        for _ in range(width):
+-            total = (total * 131 + ((row_bits & bit) != 0)) % modulo
+-            bit <<= 1
++        bits = row_bits
++        for _ in range(full_bytes):
++            total = (total * BYTE_MULTIPLIER + BYTE_CHECKSUM[bits & 0xFF]) % MODULO
++            bits >>= 8
++        if remaining_bits:
++            total = (total * pow(ALIVE_MULTIPLIER, remaining_bits, MODULO) + partial_checksums[bits]) % MODULO
+     return total
+ 
+ 

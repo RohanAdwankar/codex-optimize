@@ -1,0 +1,98 @@
+diff --git a/example/life/life.py b/example/life/life.py
+index 0e89409..4b59908 100644
+--- a/example/life/life.py
++++ b/example/life/life.py
+@@ -17,42 +17,72 @@ class LifeWorld:
+             row: list[int] = []
+             for _ in range(width):
+                 state = (1103515245 * state + 12345) & 0x7FFFFFFF
+-                row.append(1 if state % 5 in (0, 1) else 0)
++                row.append(1 if state % 5 < 2 else 0)
+             rows.append(row)
+         return cls(width=width, height=height, rows=rows)
+ 
+     def checksum(self) -> int:
+         total = 0
++        modulo = 1_000_000_007
+         for row in self.rows:
+             for value in row:
+-                total = (total * 131 + value) % 1_000_000_007
++                total = (total * 131 + value) % modulo
+         return total
+ 
+ 
++def _step_rows(rows: list[list[int]], width: int, height: int, out_rows: list[list[int]]) -> list[list[int]]:
++    if width == 1:
++        for y in range(height):
++            top = rows[y - 1]
++            mid = rows[y]
++            bot = rows[(y + 1) % height]
++            cell = mid[0]
++            neighbors = (top[0] + mid[0] + bot[0]) * 3 - cell
++            out_rows[y][0] = 1 if neighbors == 3 or (cell and neighbors == 2) else 0
++        return out_rows
++
++    for y in range(height):
++        top = rows[y - 1]
++        mid = rows[y]
++        bot = rows[(y + 1) % height]
++        next_row = out_rows[y]
++
++        left = width - 1
++        right = 1
++        top_sum = top[left] + top[0] + top[right]
++        mid_sum = mid[left] + mid[0] + mid[right]
++        bot_sum = bot[left] + bot[0] + bot[right]
++
++        for x in range(width):
++            cell = mid[x]
++            neighbors = top_sum + mid_sum + bot_sum - cell
++            next_row[x] = 1 if neighbors == 3 or (cell and neighbors == 2) else 0
++
++            prev = x - 1
++            if prev < 0:
++                prev = width - 1
++            right = x + 2
++            if right >= width:
++                right -= width
++            top_sum += top[right] - top[prev]
++            mid_sum += mid[right] - mid[prev]
++            bot_sum += bot[right] - bot[prev]
++
++    return out_rows
++
++
+ def step_world(world: LifeWorld) -> LifeWorld:
+-    next_rows: list[list[int]] = []
+     width = world.width
+     height = world.height
+-    for y in range(height):
+-        next_row: list[int] = []
+-        for x in range(width):
+-            neighbors = 0
+-            for dy in (-1, 0, 1):
+-                for dx in (-1, 0, 1):
+-                    if dx == 0 and dy == 0:
+-                        continue
+-                    neighbors += world.rows[(y + dy) % height][(x + dx) % width]
+-            cell = world.rows[y][x]
+-            if cell:
+-                next_row.append(1 if neighbors in (2, 3) else 0)
+-            else:
+-                next_row.append(1 if neighbors == 3 else 0)
+-        next_rows.append(next_row)
+-    return LifeWorld(width=width, height=height, rows=next_rows)
++    next_rows = [[0] * width for _ in range(height)]
++    return LifeWorld(width=width, height=height, rows=_step_rows(world.rows, width, height, next_rows))
+ 
+ 
+ def run_simulation(width: int, height: int, steps: int, seed: int) -> int:
+     world = LifeWorld.from_seed(width, height, seed)
++    current_rows = world.rows
++    next_rows = [[0] * width for _ in range(height)]
+     for _ in range(steps):
+-        world = step_world(world)
+-    return world.checksum()
++        _step_rows(current_rows, width, height, next_rows)
++        current_rows, next_rows = next_rows, current_rows
++    return LifeWorld(width=width, height=height, rows=current_rows).checksum()

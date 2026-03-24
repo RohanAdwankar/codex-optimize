@@ -1,0 +1,36 @@
+You are optimizing a software metric.
+
+Goal:
+- Improve the numeric score produced in `example/life/metric.json`.
+
+Primary optimization targets:
+- example/life/life.py
+
+Hard rules:
+- Do not create commits, branches, or manipulate git history.
+- Do not intentionally modify `example/life/metric.json` except as an incidental artifact of running the benchmark.
+- You may add or modify supporting files when that helps the optimization.
+- Prefer incremental, correctness-preserving improvements over risky rewrites.
+- Avoid spending your turn budget on running tests or benchmarks yourself unless it is essential to unblock a specific edit.
+
+Background information:
+# Game Of Life Optimization Task
+
+You are optimizing a deterministic Conway's Game of Life implementation.
+
+Goal:
+- Increase the score written to `metric.json`.
+- Preserve exact correctness for every generation under `tests.py`.
+
+Constraints:
+- `life.py` is the intended edit target.
+- The benchmark covers dense and medium-density boards, so wins that only help sparse data will usually not be enough.
+- The tests compare exact final board states, not approximate behavior.
+
+Potential optimization directions:
+- reduce repeated modulo work
+- reduce temporary allocations
+- reuse buffers
+- localize hot-loop variables
+- avoid redundant neighbor reads
+

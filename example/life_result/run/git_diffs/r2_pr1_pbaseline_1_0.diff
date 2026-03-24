@@ -1,0 +1,166 @@
+diff --git a/example/life/life.py b/example/life/life.py
+index 685cf34..189e1f1 100644
+--- a/example/life/life.py
++++ b/example/life/life.py
+@@ -11,63 +11,88 @@ class LifeWorld:
+ 
+     @classmethod
+     def from_seed(cls, width: int, height: int, seed: int) -> "LifeWorld":
+-        state = seed & 0x7FFFFFFF
+-        rows: list[list[int]] = []
+-        for _ in range(height):
+-            row: list[int] = []
+-            for _ in range(width):
+-                state = (1103515245 * state + 12345) & 0x7FFFFFFF
+-                row.append(1 if state % 5 < 2 else 0)
+-            rows.append(row)
++        rows = _seed_rows(width, height, seed)
+         return cls(width=width, height=height, rows=rows)
+ 
+     def checksum(self) -> int:
+-        total = 0
+-        for row in self.rows:
+-            for value in row:
+-                total = (total * 131 + value) % 1_000_000_007
+-        return total
++        return _checksum_rows(self.rows)
+ 
+ 
+-def _wrap_prev(size: int) -> list[int]:
+-    return [size - 1 if index == 0 else index - 1 for index in range(size)]
+-
+-
+-def _wrap_next(size: int) -> list[int]:
+-    last = size - 1
+-    return [0 if index == last else index + 1 for index in range(size)]
++def _seed_rows(width: int, height: int, seed: int) -> list[list[int]]:
++    state = seed & 0x7FFFFFFF
++    rows: list[list[int]] = []
++    for _ in range(height):
++        row: list[int] = []
++        for _ in range(width):
++            state = (1103515245 * state + 12345) & 0x7FFFFFFF
++            row.append(1 if state % 5 < 2 else 0)
++        rows.append(row)
++    return rows
+ 
+ 
+ def _step_rows(
+     rows: list[list[int]],
+     next_rows: list[list[int]],
+-    x_prev: list[int],
+-    x_next: list[int],
+-    y_prev: list[int],
+-    y_next: list[int],
+     width: int,
+     height: int,
+ ) -> list[list[int]]:
++    if height == 1:
++        prev_row = rows[0]
++        next_row_src = rows[0]
++        row = rows[0]
++        out_row = next_rows[0]
++        if width == 1:
++            neighbors = (prev_row[0] + row[0] + next_row_src[0]) * 3 - row[0]
++            cell = row[0]
++            out_row[0] = 1 if neighbors == 3 or (cell and neighbors == 2) else 0
++            return next_rows
++
++        col_left = prev_row[-1] + row[-1] + next_row_src[-1]
++        first_col = prev_row[0] + row[0] + next_row_src[0]
++        col_mid = prev_row[1] + row[1] + next_row_src[1]
++        neighbors = col_left + first_col + col_mid - row[0]
++        cell = row[0]
++        out_row[0] = 1 if neighbors == 3 or (cell and neighbors == 2) else 0
++        for x in range(1, width - 1):
++            col_left = first_col
++            first_col = col_mid
++            col_mid = prev_row[x + 1] + row[x + 1] + next_row_src[x + 1]
++            neighbors = col_left + first_col + col_mid - row[x]
++            cell = row[x]
++            out_row[x] = 1 if neighbors == 3 or (cell and neighbors == 2) else 0
++        neighbors = first_col + col_mid + (prev_row[0] + row[0] + next_row_src[0]) - row[-1]
++        cell = row[-1]
++        out_row[-1] = 1 if neighbors == 3 or (cell and neighbors == 2) else 0
++        return next_rows
++
++    first_row = rows[0]
+     for y in range(height):
+-        prev_row = rows[y_prev[y]]
++        prev_row = rows[y - 1]
+         row = rows[y]
+-        next_row_src = rows[y_next[y]]
++        next_row_src = first_row if y + 1 == height else rows[y + 1]
+         out_row = next_rows[y]
+-        for x in range(width):
+-            left = x_prev[x]
+-            right = x_next[x]
+-            neighbors = (
+-                prev_row[left]
+-                + prev_row[x]
+-                + prev_row[right]
+-                + row[left]
+-                + row[right]
+-                + next_row_src[left]
+-                + next_row_src[x]
+-                + next_row_src[right]
+-            )
++        if width == 1:
++            neighbors = (prev_row[0] + row[0] + next_row_src[0]) * 3 - row[0]
++            cell = row[0]
++            out_row[0] = 1 if neighbors == 3 or (cell and neighbors == 2) else 0
++            continue
++
++        col_left = prev_row[-1] + row[-1] + next_row_src[-1]
++        first_col = prev_row[0] + row[0] + next_row_src[0]
++        col_mid = prev_row[1] + row[1] + next_row_src[1]
++        neighbors = col_left + first_col + col_mid - row[0]
++        cell = row[0]
++        out_row[0] = 1 if neighbors == 3 or (cell and neighbors == 2) else 0
++        for x in range(1, width - 1):
++            col_left = first_col
++            first_col = col_mid
++            col_mid = prev_row[x + 1] + row[x + 1] + next_row_src[x + 1]
++            neighbors = col_left + first_col + col_mid - row[x]
+             cell = row[x]
+             out_row[x] = 1 if neighbors == 3 or (cell and neighbors == 2) else 0
++        neighbors = first_col + col_mid + (prev_row[0] + row[0] + next_row_src[0]) - row[-1]
++        cell = row[-1]
++        out_row[-1] = 1 if neighbors == 3 or (cell and neighbors == 2) else 0
+     return next_rows
+ 
+ 
+@@ -83,30 +108,13 @@ def step_world(world: LifeWorld) -> LifeWorld:
+     width = world.width
+     height = world.height
+     next_rows = [[0] * width for _ in range(height)]
+-    _step_rows(
+-        world.rows,
+-        next_rows,
+-        _wrap_prev(width),
+-        _wrap_next(width),
+-        _wrap_prev(height),
+-        _wrap_next(height),
+-        width,
+-        height,
+-    )
++    _step_rows(world.rows, next_rows, width, height)
+     return LifeWorld(width=width, height=height, rows=next_rows)
+ 
+ 
+ def run_simulation(width: int, height: int, steps: int, seed: int) -> int:
+-    world = LifeWorld.from_seed(width, height, seed)
+-    rows = world.rows
++    rows = _seed_rows(width, height, seed)
+     next_rows = [[0] * width for _ in range(height)]
+-    x_prev = _wrap_prev(width)
+-    x_next = _wrap_next(width)
+-    y_prev = _wrap_prev(height)
+-    y_next = _wrap_next(height)
+     for _ in range(steps):
+-        rows, next_rows = (
+-            _step_rows(rows, next_rows, x_prev, x_next, y_prev, y_next, width, height),
+-            rows,
+-        )
++        rows, next_rows = _step_rows(rows, next_rows, width, height), rows
+     return _checksum_rows(rows)

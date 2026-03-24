@@ -1,20 +1,11 @@
 # codex-optimize
 
-Optimize a numeric software metric with Codex, git worktrees, and Docker.
+Optimize any software with Codex. 
 
-`codopt` clones the current repository into a run directory, fans out candidate branches with git worktrees, runs one Codex agent per branch in its own Docker container, and evaluates each branch with a benchmark command plus a correctness test command. Surviving branches fork again in later rounds.
+`codopt` clones your repository into a run directory, fans out candidate branches with git worktrees, runs one Codex agent per branch in its own Docker container, and evaluates each branch with a benchmark command plus a correctness test command. Surviving branches fork again in later rounds.
 
-## Status
+## Why?
 
-This repository now contains a working first pass of the core system:
-
-- Python CLI orchestrator
-- per-agent Docker worker containers
-- git worktree tournament branching
-- benchmark + test evaluation in separate containers
-- metric parsing from plain numeric files or JSON files with a top-level `score`
-- run artifacts and a local web UI with node logs and manual prune requests
-- a sample optimization example in [`example/life`](./example/life)
 
 ## CLI
 
@@ -47,36 +38,28 @@ Flags:
 - `--allow-path`: repeatable extra writable path
 - `--keep-worktrees`: keep worktree directories after completion
 
-## Docker contract
+## Example 
 
-The Docker image used with `codopt` must contain:
+[`example/life`](./example/life) contains a Conway's Game of Life challenge chosen to be optimizable but not one-shottable.
 
-- `python3`
-- `git`
-- `uv`
-
-Agent containers need network access so the Codex runtime can start and reach the API. Evaluation containers are run with `--network none`.
-
-`codopt` seeds a run-scoped `CODEX_HOME` from the host `~/.codex` directory and mounts it into every agent container.
-
-## Sample benchmark
-
-[`example/life`](./example/life) contains a deterministic Conway's Game of Life workload chosen to be optimizable but not trivially one-shottable.
-
-- `life.py`: intentionally naive implementation
+- `life.py`: naive implementation
 - `benchmark.py`: writes `metric.json`
 - `tests.py`: exact correctness checks
 - `INFO.md`: instructions for the agent
 - `Dockerfile`: sample runtime image
 
-Build the sample image:
+View the result of my run in the UI :
+```bash
+uv run --with fastapi --with uvicorn python main.py ui --run-root example/life_result/run
+```
 
+Alternatively you can run it yourself.
+First build the sample image:
 ```bash
 docker build -t codopt-life:latest example/life
 ```
 
 Then run:
-
 ```bash
 python main.py \
   --edit example/life/life.py \
@@ -90,15 +73,3 @@ python main.py \
   --docker-image codopt-life:latest \
   --rounds 2
 ```
-
-## Artifacts
-
-Each run writes to `/tmp/codopt/<run-id>` by default:
-
-- cloned repo used for the tournament
-- per-node prompt, result, and agent event logs
-- `run_state.json`
-- `events.jsonl`
-- `summary.json`
-
-The UI is served on `http://127.0.0.1:<port>` and shows current node state, scores, metric snapshots, and agent logs.
