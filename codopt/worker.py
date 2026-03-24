@@ -68,6 +68,10 @@ async def main_async() -> None:
     interrupted = asyncio.Event()
     turn_handle = None
     interrupt_grace_deadline: float | None = None
+    thread = None
+    completed_turn = None
+    final_response = None
+    interrupt_sent = False
 
     def on_term(*_unused: object) -> None:
         interrupted.set()
@@ -95,85 +99,85 @@ async def main_async() -> None:
 
     codex = AsyncCodex(config=app_server_config)
     try:
-        await codex._ensure_initialized()
-        if args.mode == "start":
-            thread = await codex.thread_start(
+        async with asyncio.timeout(args.time_limit + 15):
+            await codex._ensure_initialized()
+            if args.mode == "start":
+                thread = await codex.thread_start(
+                    approval_policy=approval_policy,
+                    config=thread_config,
+                    cwd=args.worktree,
+                    model=args.model,
+                    sandbox=thread_sandbox,
+                )
+            else:
+                if not args.parent_thread_id:
+                    raise RuntimeError("fork mode requires --parent-thread-id")
+                thread = await codex.thread_fork(
+                    args.parent_thread_id,
+                    approval_policy=approval_policy,
+                    config=thread_config,
+                    cwd=args.worktree,
+                    model=args.model,
+                    sandbox=thread_sandbox,
+                )
+
+            turn_handle = await thread.turn(
+                TextInput(prompt),
                 approval_policy=approval_policy,
-                config=thread_config,
                 cwd=args.worktree,
                 model=args.model,
-                sandbox=thread_sandbox,
-            )
-        else:
-            if not args.parent_thread_id:
-                raise RuntimeError("fork mode requires --parent-thread-id")
-            thread = await codex.thread_fork(
-                args.parent_thread_id,
-                approval_policy=approval_policy,
-                config=thread_config,
-                cwd=args.worktree,
-                model=args.model,
-                sandbox=thread_sandbox,
+                sandbox_policy=sandbox_policy,
             )
 
-        turn_handle = await thread.turn(
-            TextInput(prompt),
-            approval_policy=approval_policy,
-            cwd=args.worktree,
-            model=args.model,
-            sandbox_policy=sandbox_policy,
-        )
+            timeout_deadline = loop.time() + args.time_limit
+            stream = turn_handle.stream()
 
-        final_response = None
-        completed_turn = None
-        timeout_deadline = loop.time() + args.time_limit
-        interrupt_sent = False
-        stream = turn_handle.stream()
-
-        try:
-            while True:
-                if interrupted.is_set() and not interrupt_sent:
-                    await turn_handle.interrupt()
-                    interrupt_sent = True
-                    interrupt_grace_deadline = loop.time() + 5
-
-                remaining = timeout_deadline - loop.time()
-                if remaining <= 0 and not interrupt_sent:
-                    await turn_handle.interrupt()
-                    interrupt_sent = True
-                    interrupt_grace_deadline = loop.time() + 5
-                    remaining = 5
-                elif interrupt_sent and interrupt_grace_deadline is not None:
-                    remaining = interrupt_grace_deadline - loop.time()
-                    if remaining <= 0:
-                        break
-
-                try:
-                    event = await asyncio.wait_for(stream.__anext__(), timeout=max(0.1, remaining))
-                except StopAsyncIteration:
-                    break
-                except TimeoutError:
-                    continue
-
-                event_payload = {
-                    "method": event.method,
-                    "payload": event.payload,
-                }
-                with log_file.open("a", encoding="utf-8") as fh:
-                    fh.write(json.dumps(event_payload, default=json_default) + "\n")
-
-                if event.method == "turn/completed":
-                    completed_turn = event.payload.turn
-                    for item in getattr(event.payload.turn, "items", []) or []:
-                        raw = item.model_dump(mode="json") if hasattr(item, "model_dump") else item
-                        if isinstance(raw, dict) and raw.get("type") == "agentMessage":
-                            final_response = raw.get("text")
-                    break
-        finally:
             try:
-                await asyncio.wait_for(stream.aclose(), timeout=1)
-            except Exception:
-                pass
+                while True:
+                    if interrupted.is_set() and not interrupt_sent:
+                        await turn_handle.interrupt()
+                        interrupt_sent = True
+                        interrupt_grace_deadline = loop.time() + 5
+
+                    remaining = timeout_deadline - loop.time()
+                    if remaining <= 0 and not interrupt_sent:
+                        await turn_handle.interrupt()
+                        interrupt_sent = True
+                        interrupt_grace_deadline = loop.time() + 5
+                        remaining = 5
+                    elif interrupt_sent and interrupt_grace_deadline is not None:
+                        remaining = interrupt_grace_deadline - loop.time()
+                        if remaining <= 0:
+                            break
+
+                    try:
+                        event = await asyncio.wait_for(stream.__anext__(), timeout=max(0.1, remaining))
+                    except StopAsyncIteration:
+                        break
+                    except TimeoutError:
+                        continue
+
+                    event_payload = {
+                        "method": event.method,
+                        "payload": event.payload,
+                    }
+                    with log_file.open("a", encoding="utf-8") as fh:
+                        fh.write(json.dumps(event_payload, default=json_default) + "\n")
+
+                    if event.method == "turn/completed":
+                        completed_turn = event.payload.turn
+                        for item in getattr(event.payload.turn, "items", []) or []:
+                            raw = item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+                            if isinstance(raw, dict) and raw.get("type") == "agentMessage":
+                                final_response = raw.get("text")
+                        break
+            finally:
+                try:
+                    await asyncio.wait_for(stream.aclose(), timeout=1)
+                except Exception:
+                    pass
+    except TimeoutError:
+        interrupt_sent = True
     finally:
         try:
             await asyncio.wait_for(codex.close(), timeout=1)
