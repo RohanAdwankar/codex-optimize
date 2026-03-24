@@ -1,40 +1,104 @@
-# codex-optimize: optimize any metric with codex
+# codex-optimize
 
-One approach to software optimization with AI is to directly point an agent at the problem unconstrained. 
+Optimize a numeric software metric with Codex, git worktrees, and Docker.
 
-While in many cases this works, the more efficient solution is to have the agent be controllable by a static optimizer algorithm.
+`codopt` clones the current repository into a run directory, fans out candidate branches with git worktrees, runs one Codex agent per branch in its own Docker container, and evaluates each branch with a benchmark command plus a correctness test command. Surviving branches fork again in later rounds.
 
-Take this example codex-optimize call:
-codopt --edit <source_dir_or_file> --metric <metric_file> --command <run_command> --branch <n> --time <t> --info <info_file> --max-agents <m> --test <test_command> 
+## Status
 
-In each pass parralel codex agents are given `t` minutes to attempt to optimize the metric. 
+This repository now contains a working first pass of the core system:
 
-Codex-optimize (which will henceforth be referred to as codopt) create `n` git worktrees, and instantiates a codex agent on each work tree telling it to edit the source code in `edit` in order to get the metric in `metric_file` to go up using the background `info` to understand what the metric is. 
+- Python CLI orchestrator
+- per-agent Docker worker containers
+- git worktree tournament branching
+- benchmark + test evaluation in separate containers
+- metric parsing from plain numeric files or JSON files with a top-level `score`
+- run artifacts and a local web UI with node logs and manual prune requests
+- a sample optimization example in [`example/life`](./example/life)
 
-Codopt itself doesn't use AI to inform its decisions, it simply statically checks the metric in `metric_file` and prunes accordingly.
+## CLI
 
-In addition to making this process deterministic, codopt also adds some security guarentees to prevent agents from breaking out of the benchmark.
+```bash
+python main.py \
+  --edit example/life/life.py \
+  --metric example/life/metric.json \
+  --command "python3 example/life/benchmark.py" \
+  --branch 3 \
+  --time 120 \
+  --info example/life/INFO.md \
+  --max-agents 6 \
+  --test "python3 example/life/tests.py" \
+  --docker-image codopt-life:latest \
+  --rounds 2
+```
 
-In past experiments a commonly sighted issue with applying agents for optimization tasks is that the agents will essentially cheat.
+Flags:
 
-The way this is prevented in codopt is using git. When the agent has run out of time it is paused. Then the metric file is reset to the last git commit not made by the agent (in case the agent tries to create a commit to rig the system) and the program is run as per the `command` string.
+- `--edit`: repeatable file or directory the agent may edit
+- `--metric`: metric file written by the benchmark command
+- `--command`: benchmark command
+- `--branch`: children per surviving node
+- `--time`: per-node Codex time budget in seconds
+- `--info`: background context given to the agent
+- `--max-agents`: active-node cap used to decide survivor count
+- `--test`: correctness test command
+- `--docker-image`: required container image for agent and evaluation runs
+- `--rounds`: tournament depth
+- `--allow-path`: repeatable extra writable path
+- `--keep-worktrees`: keep worktree directories after completion
 
-Even with all these protections the agent could potentially just edit the source directory to write 100% to the `metric_file`. In order to counteract this the program is run against the `test_dir` to ensure the program is still correct. Aside from protecting against cheating this also ensures that the optimization doesn't result in a loss in correctness. 
+## Docker contract
 
-As the optimization progresses only the top `m/n` nodes survive and branch out.
-If an agent survives, its git worktree becomes a proper branch and non surviving worktrees are pruned.
+The Docker image used with `codopt` must contain:
 
-One potential issue with this is that there could tendancy towards less diverse code since after the first pass, the majority of the winners could be from the top agent from the last round. Eventually a new optional --diversity flag will be added which adds the option to have a modular diversity metric which can then be used to bin the nodes and choose best performers with bins in mind.
+- `python3`
+- `git`
+- `uv`
 
-Codopt aims to be as modular as possible to support any software written in any langugage as long as the environemnt it is called in can run the command given and the source code saves the metric to metric_file.
+Agent containers need network access so the Codex runtime can start and reach the API. Evaluation containers are run with `--network none`.
 
-## Visualization
+`codopt` seeds a run-scoped `CODEX_HOME` from the host `~/.codex` directory and mounts it into every agent container.
 
-For fun when you run codopt it will open a web-ui to see what is going on. 
-There you can see a graph of the starting metric and a live view of the inside of the metric file as time progresses.
-If you click on one of the nodes in the graph (you can also click on the nodes in the legend of the graph since at the start the agents will be very close), you can see the loggings of the conversation to see what the different agents are doing on their race.
-When a node is selecting there is also a button in the top right of the session view to prune the agent which you may want to do early if u dont like the way it's progressing.
+## Sample benchmark
 
-## Example
+[`example/life`](./example/life) contains a deterministic Conway's Game of Life workload chosen to be optimizable but not trivially one-shottable.
 
-An example of what a very simple directory that can be used for codopt is found in `./example/`.
+- `life.py`: intentionally naive implementation
+- `benchmark.py`: writes `metric.json`
+- `tests.py`: exact correctness checks
+- `INFO.md`: instructions for the agent
+- `Dockerfile`: sample runtime image
+
+Build the sample image:
+
+```bash
+docker build -t codopt-life:latest example/life
+```
+
+Then run:
+
+```bash
+python main.py \
+  --edit example/life/life.py \
+  --metric example/life/metric.json \
+  --command "python3 example/life/benchmark.py" \
+  --branch 3 \
+  --time 120 \
+  --info example/life/INFO.md \
+  --max-agents 6 \
+  --test "python3 example/life/tests.py" \
+  --docker-image codopt-life:latest \
+  --rounds 2
+```
+
+## Artifacts
+
+Each run writes to `/tmp/codopt/<run-id>` by default:
+
+- cloned repo used for the tournament
+- per-node prompt, result, and agent event logs
+- `run_state.json`
+- `events.jsonl`
+- `summary.json`
+
+The UI is served on `http://127.0.0.1:<port>` and shows current node state, scores, metric snapshots, and agent logs.
