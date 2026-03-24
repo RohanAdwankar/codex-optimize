@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import threading
 import time
 import webbrowser
@@ -126,6 +127,35 @@ def _parse_agent_log(log_file: Path) -> dict[str, Any]:
     }
 
 
+def _git_diff_for_node(state: dict[str, Any], node_id: str) -> str:
+    nodes = {node["node_id"]: node for node in state.get("nodes", [])}
+    node = nodes.get(node_id)
+    if not node:
+        return ""
+    parent_id = node.get("parent_id")
+    commit_sha = node.get("commit_sha")
+    if not parent_id or not commit_sha:
+        return ""
+    parent = nodes.get(parent_id)
+    if not parent:
+        return ""
+    parent_commit = parent.get("commit_sha") or parent.get("trusted_commit")
+    if not parent_commit:
+        return ""
+    repo_clone = state.get("config", {}).get("repo_clone")
+    if not repo_clone:
+        return ""
+    result = subprocess.run(
+        ["git", "-C", repo_clone, "diff", "--no-ext-diff", f"{parent_commit}..{commit_sha}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return result.stderr or ""
+    return result.stdout
+
+
 def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = False) -> "FastAPI":
     from fastapi import FastAPI, HTTPException
     from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
@@ -161,6 +191,7 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
     body {
       margin: 0;
       font-family: Inter, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 14px;
       background:
         radial-gradient(circle at top left, #fff6e8 0%, #f6efe2 42%, #efe6d4 100%);
       color: var(--ink);
@@ -188,7 +219,7 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
     }
     .subtle {
       color: var(--muted);
-      font-size: 13px;
+      font-size: 14px;
     }
     .badge-row {
       display: flex;
@@ -201,8 +232,8 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
       align-items: center;
       gap: 6px;
       padding: 6px 10px;
-      border-radius: 999px;
-      font-size: 12px;
+      border-radius: 0;
+      font-size: 14px;
       border: 1px solid rgba(31, 28, 24, 0.1);
       background: rgba(255, 255, 255, 0.55);
     }
@@ -219,7 +250,7 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
     .panel {
       background: rgba(255, 249, 238, 0.9);
       border: 1px solid var(--line);
-      border-radius: 16px;
+      border-radius: 0;
       box-shadow: 0 18px 60px rgba(74, 52, 28, 0.08);
       overflow: hidden;
     }
@@ -246,18 +277,16 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
       display: block;
       background:
         linear-gradient(180deg, rgba(255,255,255,0.75), rgba(249,242,229,0.98));
-      border-radius: 12px;
+      border-radius: 0;
       border: 1px solid rgba(31, 28, 24, 0.08);
     }
     .graph-axis {
-      font-size: 11px;
+      font-size: 14px;
       fill: var(--muted);
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     .graph-label {
-      font-size: 12px;
+      font-size: 14px;
       fill: var(--muted);
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     .graph-edge {
       stroke: rgba(31, 28, 24, 0.18);
@@ -280,7 +309,7 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
     }
     .node-card {
       border: 1px solid rgba(31, 28, 24, 0.08);
-      border-radius: 14px;
+      border-radius: 0;
       padding: 12px;
       margin-bottom: 10px;
       cursor: pointer;
@@ -302,9 +331,8 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
     }
     .node-meta {
       color: var(--muted);
-      font-size: 12px;
+      font-size: 14px;
       line-height: 1.5;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     .detail {
       display: grid;
@@ -323,21 +351,20 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
     }
     .stat {
       border: 1px solid rgba(31, 28, 24, 0.08);
-      border-radius: 14px;
+      border-radius: 0;
       padding: 12px;
       background: rgba(255,255,255,0.6);
     }
     .stat-label {
       display: block;
       color: var(--muted);
-      font-size: 11px;
+      font-size: 14px;
       letter-spacing: 0.02em;
       margin-bottom: 8px;
     }
     .stat-value {
-      font-size: 18px;
+      font-size: 14px;
       line-height: 1.2;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     .meta-grid {
       display: grid;
@@ -347,11 +374,10 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
       border-top: 1px solid rgba(31, 28, 24, 0.08);
     }
     .meta-grid div {
-      font-size: 13px;
+      font-size: 14px;
       line-height: 1.45;
     }
     .mono {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       word-break: break-word;
     }
     .tabs {
@@ -367,11 +393,11 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
       justify-content: center;
       appearance: none;
       border: 1px solid rgba(31, 28, 24, 0.12);
-      border-radius: 999px;
+      border-radius: 0;
       background: rgba(255,255,255,0.72);
       color: var(--ink);
       padding: 8px 12px;
-      font-size: 12px;
+      font-size: 14px;
       cursor: pointer;
       flex: 0 0 auto;
     }
@@ -389,14 +415,14 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
     .tab-panel.active { display: block; }
     .log-entry {
       border: 1px solid rgba(31, 28, 24, 0.08);
-      border-radius: 14px;
+      border-radius: 0;
       padding: 12px;
       margin-bottom: 12px;
       background: rgba(255,255,255,0.62);
     }
     .log-kind {
       display: inline-block;
-      font-size: 11px;
+      font-size: 14px;
       letter-spacing: 0.02em;
       color: var(--muted);
       margin-bottom: 8px;
@@ -410,28 +436,26 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
     .output, .raw-log, .metric-box {
       white-space: pre-wrap;
       word-break: break-word;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 12px;
+      font-size: 14px;
       line-height: 1.5;
       margin: 0;
     }
     .output {
       margin-top: 10px;
       padding: 10px 12px;
-      border-radius: 10px;
+      border-radius: 0;
       background: #f7f1e5;
       border: 1px solid rgba(31, 28, 24, 0.08);
       max-height: 320px;
       overflow: auto;
     }
     .diff-box {
-      border-radius: 10px;
+      border-radius: 0;
       background: #171512;
       color: #f5ecda;
       padding: 10px 0;
       overflow: auto;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 12px;
+      font-size: 14px;
       line-height: 1.45;
     }
     .diff-line {
@@ -459,10 +483,15 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
       color: white;
       border: 0;
       padding: 10px 12px;
-      border-radius: 10px;
+      border-radius: 0;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 14px;
       letter-spacing: 0.02em;
+    }
+    .diff-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 10px;
     }
     button.action:disabled {
       background: #c5b6a5;
@@ -511,9 +540,11 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
         <div class="detail-body" id="detail-summary"></div>
         <div class="tabs">
           <button class="tab active" data-tab="parsed">Parsed Log</button>
+          <button class="tab" data-tab="gitdiff">Git Diff</button>
           <button class="tab" data-tab="raw">Raw Logs</button>
         </div>
         <div class="tab-panel active" id="tab-parsed"></div>
+        <div class="tab-panel" id="tab-gitdiff"></div>
         <div class="tab-panel" id="tab-raw"></div>
       </section>
     </section>
@@ -525,6 +556,7 @@ let selectedNodeId = null;
 let activeTab = 'parsed';
 let parsedLogCache = new Map();
 let rawLogCache = new Map();
+let gitDiffCache = new Map();
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -777,6 +809,14 @@ function renderDiff(diff) {
   return `<div class="diff-box">${rendered}</div>`;
 }
 
+async function loadGitDiff(nodeId) {
+  if (gitDiffCache.has(nodeId)) return gitDiffCache.get(nodeId);
+  const res = await fetch(`/api/node/${nodeId}/git-diff`);
+  const text = await res.text();
+  gitDiffCache.set(nodeId, text);
+  return text;
+}
+
 function renderParsedEntries(parsed) {
   const entries = parsed?.entries || [];
   if (!entries.length) {
@@ -832,6 +872,7 @@ async function renderDetails() {
   const node = getSelectedNode();
   const summary = document.getElementById('detail-summary');
   const parsedPanel = document.getElementById('tab-parsed');
+  const gitDiffPanel = document.getElementById('tab-gitdiff');
   const rawPanel = document.getElementById('tab-raw');
   const tabs = document.querySelector('.tabs');
   if (!node) {
@@ -839,6 +880,7 @@ async function renderDetails() {
     document.getElementById('detail-status').textContent = '';
     summary.innerHTML = '<div class="empty">No node selected.</div>';
     parsedPanel.innerHTML = '';
+    gitDiffPanel.innerHTML = '';
     rawPanel.innerHTML = '';
     tabs.style.display = 'none';
     return;
@@ -850,15 +892,24 @@ async function renderDetails() {
   if (!node.log_file) {
     tabs.style.display = 'none';
     parsedPanel.innerHTML = '<div class="empty">This node has no agent log.</div>';
+    gitDiffPanel.innerHTML = '<div class="empty">This node has no commit diff.</div>';
     rawPanel.innerHTML = '<div class="empty">This node has no raw log.</div>';
   } else {
     tabs.style.display = 'flex';
     const parsed = await loadParsedLog(node.node_id);
     parsedPanel.innerHTML = renderParsedEntries(parsed);
-    if (activeTab === 'raw') {
+    if (activeTab === 'gitdiff') {
+      const diffText = await loadGitDiff(node.node_id);
+      gitDiffPanel.innerHTML = diffText
+        ? `<div class="diff-toolbar"><button class="action" onclick="copyGitDiff('${node.node_id}')">Copy Diff</button></div>${renderDiff(diffText)}`
+        : '<div class="empty">This node has no commit diff.</div>';
+      rawPanel.innerHTML = '<div class="empty">Raw log hidden until you open the tab.</div>';
+    } else if (activeTab === 'raw') {
       const rawText = await loadRawLog(node.node_id);
       rawPanel.innerHTML = `<pre class="raw-log">${escapeHtml(rawText)}</pre>`;
+      gitDiffPanel.innerHTML = '<div class="empty">Git diff hidden until you open the tab.</div>';
     } else {
+      gitDiffPanel.innerHTML = '<div class="empty">Git diff hidden until you open the tab.</div>';
       rawPanel.innerHTML = '<div class="empty">Raw log hidden until you open the tab.</div>';
     }
   }
@@ -870,11 +921,19 @@ function setActiveTab(tabName) {
     tab.classList.toggle('active', tab.dataset.tab === tabName);
   });
   document.getElementById('tab-parsed').classList.toggle('active', tabName === 'parsed');
+  document.getElementById('tab-gitdiff').classList.toggle('active', tabName === 'gitdiff');
   document.getElementById('tab-raw').classList.toggle('active', tabName === 'raw');
-  if (tabName === 'raw' && selectedNodeId) {
+  if ((tabName === 'raw' || tabName === 'gitdiff') && selectedNodeId) {
     rawLogCache.delete(selectedNodeId);
+    gitDiffCache.delete(selectedNodeId);
     renderDetails();
   }
+}
+
+async function copyGitDiff(nodeId) {
+  const diffText = await loadGitDiff(nodeId);
+  if (!diffText) return;
+  await navigator.clipboard.writeText(diffText);
 }
 
 async function pruneNode(nodeId) {
@@ -910,6 +969,7 @@ async function refresh() {
     selectedNodeId = nodes[0]?.node_id || null;
   }
   parsedLogCache = new Map();
+  gitDiffCache = new Map();
   await render();
 }
 
@@ -953,6 +1013,14 @@ refresh();
                 if log_file and Path(log_file).exists():
                     return Path(log_file).read_text(encoding="utf-8")
                 return ""
+        raise HTTPException(status_code=404, detail="unknown node")
+
+    @app.get("/api/node/{node_id}/git-diff", response_class=PlainTextResponse)
+    def api_git_diff(node_id: str) -> str:
+        state = _load_state(state_file)
+        for node in state.get("nodes", []):
+            if node["node_id"] == node_id:
+                return _git_diff_for_node(state, node_id)
         raise HTTPException(status_code=404, detail="unknown node")
 
     @app.post("/api/node/{node_id}/prune")
