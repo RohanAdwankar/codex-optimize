@@ -160,7 +160,7 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      font-family: Inter, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       background:
         radial-gradient(circle at top left, #fff6e8 0%, #f6efe2 42%, #efe6d4 100%);
       color: var(--ink);
@@ -233,8 +233,8 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
     .panel-head h2, .panel-head h3 {
       margin: 0;
       font-size: 15px;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
+      letter-spacing: 0.01em;
+      font-weight: 600;
     }
     .graph-wrap {
       height: calc(100% - 48px);
@@ -266,9 +266,7 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
     }
     .graph-point {
       cursor: pointer;
-      transition: transform 0.12s ease;
     }
-    .graph-point:hover { transform: scale(1.08); }
     .layout {
       display: grid;
       grid-template-columns: 360px minmax(0, 1fr);
@@ -333,8 +331,7 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
       display: block;
       color: var(--muted);
       font-size: 11px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      letter-spacing: 0.02em;
       margin-bottom: 8px;
     }
     .stat-value {
@@ -362,8 +359,12 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
       gap: 8px;
       padding: 0 16px 12px;
       border-bottom: 1px solid rgba(31, 28, 24, 0.08);
+      flex-wrap: wrap;
     }
     .tab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       appearance: none;
       border: 1px solid rgba(31, 28, 24, 0.12);
       border-radius: 999px;
@@ -372,6 +373,7 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
       padding: 8px 12px;
       font-size: 12px;
       cursor: pointer;
+      flex: 0 0 auto;
     }
     .tab.active {
       background: var(--accent);
@@ -395,8 +397,7 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
     .log-kind {
       display: inline-block;
       font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.02em;
       color: var(--muted);
       margin-bottom: 8px;
     }
@@ -461,8 +462,7 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
       border-radius: 10px;
       cursor: pointer;
       font-size: 12px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
+      letter-spacing: 0.02em;
     }
     button.action:disabled {
       background: #c5b6a5;
@@ -492,7 +492,7 @@ def create_app(state_file: Path, control_dir: Path | None, *, read_only: bool = 
         <div class="subtle" id="graph-summary"></div>
       </div>
       <div class="graph-wrap">
-        <svg id="graph" viewBox="0 0 1000 320" preserveAspectRatio="none"></svg>
+        <svg id="graph" viewBox="0 0 1000 320" preserveAspectRatio="xMidYMid meet"></svg>
       </div>
     </section>
     <section class="layout">
@@ -571,9 +571,15 @@ function computeGraphData(nodes, runStartIso) {
   const edges = [];
   const scores = [];
   const times = [];
+  const baselineNode = nodes.find((node) => node.node_id === 'baseline');
+  const baselineStartIso = baselineNode?.created_at || runStartIso;
   for (const node of nodes) {
-    const anchorTime = node.started_at || node.created_at || runStartIso;
-    const elapsed = elapsedSeconds(anchorTime, runStartIso) ?? 0;
+    let elapsed = 0;
+    if (node.node_id !== 'baseline') {
+      const anchorTime = node.started_at || node.created_at || runStartIso;
+      const rawElapsed = elapsedSeconds(anchorTime, baselineStartIso) ?? 0;
+      elapsed = Math.max(rawElapsed, 0.25);
+    }
     const score = typeof node.score === 'number' ? node.score : null;
     graphNodes.push({
       node_id: node.node_id,
@@ -619,12 +625,17 @@ function renderGraph() {
   const graph = computeGraphData(nodes, runStart);
   const width = 1000;
   const height = 320;
-  const margin = { top: 18, right: 22, bottom: 36, left: 88 };
+  const margin = { top: 28, right: 22, bottom: 36, left: 116 };
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
   const scoreSpan = Math.max(graph.maxScore - graph.minScore, 1);
   const timeSpan = Math.max(graph.maxTime, 1);
-  const xFor = (elapsed) => margin.left + (elapsed / timeSpan) * innerWidth;
+  const minNodeOffset = Math.max(timeSpan * 0.06, 1.5);
+  const xFor = (node) => {
+    if (node.node_id === 'baseline') return margin.left;
+    const shiftedElapsed = Math.max(node.elapsed, minNodeOffset);
+    return margin.left + (shiftedElapsed / (timeSpan + minNodeOffset)) * innerWidth;
+  };
   const yFor = (score) => {
     if (score === null || score === undefined) return margin.top + innerHeight;
     return margin.top + innerHeight - ((score - graph.minScore) / scoreSpan) * innerHeight;
@@ -645,20 +656,21 @@ function renderGraph() {
     const from = nodesById[edge.from];
     const to = nodesById[edge.to];
     if (!from || !to) continue;
-    const x1 = xFor(from.elapsed);
+    const x1 = xFor(from);
     const y1 = yFor(from.score);
-    const x2 = xFor(to.elapsed);
+    const x2 = xFor(to);
     const y2 = yFor(to.score);
-    parts.push(`<path class="graph-edge" d="M ${x1} ${y1} C ${x1 + 28} ${y1}, ${x2 - 28} ${y2}, ${x2} ${y2}" />`);
+    parts.push(`<line class="graph-edge" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />`);
   }
 
   for (const node of graph.nodes) {
-    const x = xFor(node.elapsed);
+    const x = xFor(node);
     const y = yFor(node.score);
-    const radius = selectedNodeId === node.node_id ? 7.5 : 5.2;
+    const radius = 5.8;
+    const fill = selectedNodeId === node.node_id ? '#d08a28' : pointColor(node);
     const stroke = selectedNodeId === node.node_id ? '#171512' : 'rgba(255,255,255,0.92)';
     parts.push(
-      `<circle class="graph-point" cx="${x}" cy="${y}" r="${radius}" fill="${pointColor(node)}" stroke="${stroke}" stroke-width="2" data-node-id="${escapeHtml(node.node_id)}">` +
+      `<circle class="graph-point" cx="${x}" cy="${y}" r="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="2.2" data-node-id="${escapeHtml(node.node_id)}">` +
       `<title>${escapeHtml(node.node_id)} score=${escapeHtml(formatNumber(node.score))} t=${escapeHtml(formatSeconds(node.elapsed))}</title></circle>`
     );
   }
@@ -667,9 +679,9 @@ function renderGraph() {
   const maxScoreLabel = formatNumber(graph.maxScore);
   const maxTimeLabel = formatSeconds(graph.maxTime);
   parts.push(`<text x="${margin.left}" y="${height - 10}" class="graph-label">elapsed time</text>`);
-  parts.push(`<text x="18" y="${margin.top + 10}" class="graph-label">score</text>`);
-  parts.push(`<text x="10" y="${margin.top + innerHeight}" class="graph-axis">${escapeHtml(minScoreLabel)}</text>`);
-  parts.push(`<text x="10" y="${margin.top + 12}" class="graph-axis">${escapeHtml(maxScoreLabel)}</text>`);
+  parts.push(`<text x="18" y="${margin.top + innerHeight / 2}" class="graph-label" dominant-baseline="middle">score</text>`);
+  parts.push(`<text x="10" y="${margin.top + innerHeight}" class="graph-axis" dominant-baseline="middle">${escapeHtml(minScoreLabel)}</text>`);
+  parts.push(`<text x="10" y="${margin.top}" class="graph-axis" dominant-baseline="middle">${escapeHtml(maxScoreLabel)}</text>`);
   parts.push(`<text x="${width - margin.right - 28}" y="${height - 10}" class="graph-axis">${escapeHtml(maxTimeLabel)}</text>`);
 
   svg.innerHTML = parts.join('');
@@ -725,6 +737,7 @@ function summaryStats(node, baselineScore, runStart) {
     ? (new Date(node.finished_at).getTime() - new Date(node.started_at).getTime()) / 1000
     : null;
   const sinceStart = elapsedSeconds(node.started_at || node.created_at, runStart);
+  const showPrune = !READ_ONLY && node.node_id !== 'baseline' && stateCache?.meta?.status !== 'completed';
   return `
     <div class="stats">
       <div class="stat"><span class="stat-label">Score</span><div class="stat-value">${escapeHtml(formatNumber(node.score))}</div></div>
@@ -746,6 +759,7 @@ function summaryStats(node, baselineScore, runStart) {
       <div><strong>Worktree</strong><div class="mono">${escapeHtml(node.worktree_path || 'n/a')}</div></div>
       <div><strong>Metric</strong><pre class="metric-box">${escapeHtml(node.metric_text || '')}</pre></div>
     </div>
+    ${showPrune ? `<div class="actions"><button class="action" onclick="pruneNode('${node.node_id}')">Prune Node</button></div>` : ''}
   `;
 }
 
@@ -819,26 +833,34 @@ async function renderDetails() {
   const summary = document.getElementById('detail-summary');
   const parsedPanel = document.getElementById('tab-parsed');
   const rawPanel = document.getElementById('tab-raw');
+  const tabs = document.querySelector('.tabs');
   if (!node) {
     document.getElementById('detail-title').textContent = 'Run';
     document.getElementById('detail-status').textContent = '';
     summary.innerHTML = '<div class="empty">No node selected.</div>';
     parsedPanel.innerHTML = '';
     rawPanel.innerHTML = '';
+    tabs.style.display = 'none';
     return;
   }
   document.getElementById('detail-title').textContent = node.node_id;
   document.getElementById('detail-status').textContent = `${node.status} | depth ${node.depth}`;
-  summary.innerHTML = summaryStats(node, stateCache?.meta?.baseline_score, stateCache?.meta?.created_at) +
-    `<div class="actions"><button class="action" ${READ_ONLY || stateCache?.meta?.status === 'completed' ? 'disabled' : ''} onclick="pruneNode('${node.node_id}')">Prune Node</button></div>`;
+  summary.innerHTML = summaryStats(node, stateCache?.meta?.baseline_score, stateCache?.meta?.created_at);
 
-  const parsed = await loadParsedLog(node.node_id);
-  parsedPanel.innerHTML = renderParsedEntries(parsed);
-  if (activeTab === 'raw') {
-    const rawText = await loadRawLog(node.node_id);
-    rawPanel.innerHTML = `<pre class="raw-log">${escapeHtml(rawText)}</pre>`;
+  if (!node.log_file) {
+    tabs.style.display = 'none';
+    parsedPanel.innerHTML = '<div class="empty">This node has no agent log.</div>';
+    rawPanel.innerHTML = '<div class="empty">This node has no raw log.</div>';
   } else {
-    rawPanel.innerHTML = '<div class="empty">Raw log hidden until you open the tab.</div>';
+    tabs.style.display = 'flex';
+    const parsed = await loadParsedLog(node.node_id);
+    parsedPanel.innerHTML = renderParsedEntries(parsed);
+    if (activeTab === 'raw') {
+      const rawText = await loadRawLog(node.node_id);
+      rawPanel.innerHTML = `<pre class="raw-log">${escapeHtml(rawText)}</pre>`;
+    } else {
+      rawPanel.innerHTML = '<div class="empty">Raw log hidden until you open the tab.</div>';
+    }
   }
 }
 
