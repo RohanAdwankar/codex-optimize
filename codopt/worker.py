@@ -47,18 +47,18 @@ async def main_async() -> None:
     ensure_sdk_paths(project_root)
 
     from _runtime_setup import ensure_runtime_package_installed
-    from codex_app_server import AppServerConfig, AskForApproval, AsyncCodex, SandboxPolicy, TextInput
+    from codex_app_server import AppServerConfig, AskForApproval, AsyncCodex, SandboxMode, SandboxPolicy, TextInput
+    from codex_app_server.client import _resolve_codex_bin
 
     ensure_runtime_package_installed(sys.executable, project_root / "docs" / "sdk" / "python")
+    codex_bin = _resolve_codex_bin(AppServerConfig())
     approval_policy = AskForApproval.model_validate("never")
-    sandbox_policy = SandboxPolicy.model_validate(
-        {
-            "type": "workspaceWrite",
-            "networkAccess": False,
-            "readOnlyAccess": {"type": "fullAccess"},
-            "writableRoots": [args.worktree],
-        }
-    )
+    thread_sandbox = SandboxMode.danger_full_access
+    sandbox_policy = SandboxPolicy.model_validate({"type": "dangerFullAccess"})
+    thread_config = {
+        "sandbox_mode": "danger-full-access",
+        "approval_policy": "never",
+    }
     prompt = Path(args.prompt_file).read_text(encoding="utf-8")
     result_file = Path(args.result_file)
     log_file = Path(args.log_file)
@@ -67,6 +67,7 @@ async def main_async() -> None:
 
     interrupted = asyncio.Event()
     turn_handle = None
+    interrupt_grace_deadline: float | None = None
 
     def on_term(*_unused: object) -> None:
         interrupted.set()
@@ -78,12 +79,30 @@ async def main_async() -> None:
         except NotImplementedError:
             signal.signal(sig, lambda *_args: interrupted.set())
 
-    async with AsyncCodex(config=AppServerConfig()) as codex:
+    app_server_config = AppServerConfig(
+        codex_bin=str(codex_bin),
+        launch_args_override=(
+            str(codex_bin),
+            "--sandbox",
+            "danger-full-access",
+            "--ask-for-approval",
+            "never",
+            "app-server",
+            "--listen",
+            "stdio://",
+        ),
+    )
+
+    codex = AsyncCodex(config=app_server_config)
+    try:
+        await codex._ensure_initialized()
         if args.mode == "start":
             thread = await codex.thread_start(
                 approval_policy=approval_policy,
+                config=thread_config,
                 cwd=args.worktree,
                 model=args.model,
+                sandbox=thread_sandbox,
             )
         else:
             if not args.parent_thread_id:
@@ -91,8 +110,10 @@ async def main_async() -> None:
             thread = await codex.thread_fork(
                 args.parent_thread_id,
                 approval_policy=approval_policy,
+                config=thread_config,
                 cwd=args.worktree,
                 model=args.model,
+                sandbox=thread_sandbox,
             )
 
         turn_handle = await thread.turn(
@@ -114,12 +135,18 @@ async def main_async() -> None:
                 if interrupted.is_set() and not interrupt_sent:
                     await turn_handle.interrupt()
                     interrupt_sent = True
+                    interrupt_grace_deadline = loop.time() + 5
 
                 remaining = timeout_deadline - loop.time()
                 if remaining <= 0 and not interrupt_sent:
                     await turn_handle.interrupt()
                     interrupt_sent = True
+                    interrupt_grace_deadline = loop.time() + 5
                     remaining = 5
+                elif interrupt_sent and interrupt_grace_deadline is not None:
+                    remaining = interrupt_grace_deadline - loop.time()
+                    if remaining <= 0:
+                        break
 
                 try:
                     event = await asyncio.wait_for(stream.__anext__(), timeout=max(0.1, remaining))
@@ -143,7 +170,21 @@ async def main_async() -> None:
                             final_response = raw.get("text")
                     break
         finally:
-            await stream.aclose()
+            try:
+                await asyncio.wait_for(stream.aclose(), timeout=1)
+            except Exception:
+                pass
+    finally:
+        try:
+            await asyncio.wait_for(codex.close(), timeout=1)
+        except Exception:
+            sync_client = codex._client._sync
+            proc = getattr(sync_client, "_proc", None)
+            if proc is not None:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
 
     result_payload = {
         "thread_id": thread.id,

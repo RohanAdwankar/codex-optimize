@@ -19,6 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--test", required=True, help="Correctness test command")
     parser.add_argument("--docker-image", required=True, help="Container image used for agent and eval runs")
     parser.add_argument("--rounds", type=int, default=2, help="How many tournament rounds to run")
+    parser.add_argument("--max-depth", type=int, help="Alias for --rounds; stop recursion after this depth")
     parser.add_argument("--model", default="gpt-5.4", help="Codex model")
     parser.add_argument("--run-root", help="Run root directory, default /tmp/codopt/<run-id>")
     parser.add_argument("--run-id", help="Optional explicit run identifier")
@@ -32,4 +33,10 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
+    if args.max_depth is not None:
+        if args.max_depth < 1:
+            parser.error("--max-depth must be at least 1")
+        if args.rounds != 2 and args.rounds != args.max_depth:
+            parser.error("--rounds and --max-depth must match when both are provided")
+        args.rounds = args.max_depth
     asyncio.run(run_codopt(args, Path(__file__).resolve().parents[1]))

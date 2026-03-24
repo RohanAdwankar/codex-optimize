@@ -64,6 +64,9 @@ def worker_command(project_root: Path, worker_args: list[str]) -> list[str]:
     return [
         "uv",
         "run",
+        "--no-project",
+        "--python",
+        "python3",
         "--with",
         "pydantic",
         "--with",
@@ -73,8 +76,7 @@ def worker_command(project_root: Path, worker_args: list[str]) -> list[str]:
         "--with",
         "typing-inspection",
         "python",
-        "-m",
-        "codopt.worker",
+        str(project_root / "codopt" / "worker.py"),
         *worker_args,
     ]
 

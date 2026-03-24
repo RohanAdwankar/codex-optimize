@@ -96,8 +96,35 @@ class CodoptOrchestrator:
     def _seed_codex_home(self) -> None:
         host_codex_home = Path.home() / ".codex"
         self.codex_home.mkdir(parents=True, exist_ok=True)
-        if host_codex_home.exists():
-            shutil.copytree(host_codex_home, self.codex_home, dirs_exist_ok=True)
+        for name in ("auth.json", "config.json"):
+            source = host_codex_home / name
+            if source.exists():
+                shutil.copy2(source, self.codex_home / name)
+        self._write_codex_config()
+
+    def _write_codex_config(self) -> None:
+        trusted_roots = [
+            self.run_root,
+            self.repo_clone,
+            self.run_root / "worktrees",
+        ]
+        lines = [
+            f'model = {json.dumps(self.args.model)}',
+            'model_reasoning_effort = "medium"',
+            'approval_policy = "never"',
+            'sandbox_mode = "danger-full-access"',
+            "",
+        ]
+        for trusted_root in trusted_roots:
+            lines.extend(
+                [
+                    f"[projects.{json.dumps(str(trusted_root))}]",
+                    'trust_level = "trusted"',
+                    "",
+                ]
+            )
+        config_text = "\n".join(lines)
+        (self.codex_home / "config.toml").write_text(config_text, encoding="utf-8")
 
     def _add_event(self, event_type: str, message: str, *, node_id: str | None = None, details: dict | None = None) -> None:
         self.state.add_event(RunEvent.build(event_type=event_type, message=message, node_id=node_id, details=details))
@@ -175,23 +202,20 @@ class CodoptOrchestrator:
 
     def build_prompt(self) -> str:
         edit_paths = "\n".join(f"- {path}" for path in self.edit_paths)
-        allow_paths = "\n".join(f"- {path}" for path in self.allow_paths) or "- (none)"
         return f"""You are optimizing a software metric.
 
 Goal:
 - Improve the numeric score produced in `{self.metric_path}`.
 
-Allowed source edits:
+Primary optimization targets:
 {edit_paths}
-
-Additional allowed writable paths:
-{allow_paths}
 
 Hard rules:
 - Do not create commits, branches, or manipulate git history.
 - Do not intentionally modify `{self.metric_path}` except as an incidental artifact of running the benchmark.
-- Do not edit files outside the allowed paths.
+- You may add or modify supporting files when that helps the optimization.
 - Prefer incremental, correctness-preserving improvements over risky rewrites.
+- Avoid spending your turn budget on running tests or benchmarks yourself unless it is essential to unblock a specific edit.
 
 Background information:
 {self.info_text}
@@ -265,6 +289,7 @@ Background information:
                 continue
 
         stdout, stderr = await proc.communicate()
+        return_code = proc.returncode
         if stdout:
             (self.logs_dir / f"{node_id}.stdout.log").parent.mkdir(parents=True, exist_ok=True)
             (self.logs_dir / f"{node_id}.stdout.log").write_bytes(stdout)
@@ -275,6 +300,27 @@ Background information:
         result_payload = {}
         if result_file.exists():
             result_payload = json.loads(result_file.read_text(encoding="utf-8"))
+        elif return_code == 0 and not pruned:
+            self.state.update_node(
+                node_id,
+                status="failed",
+                finished_at=utc_now(),
+                error="worker exited without result file",
+            )
+            self._add_event("node.failed", f"Worker exited without result for {node_id}", node_id=node_id)
+            return self.nodes[node_id]
+
+        if return_code not in (0, None) and not pruned:
+            worker_error = (stderr.decode("utf-8", errors="replace") if stderr else "").strip()
+            self.state.update_node(
+                node_id,
+                status="failed",
+                finished_at=utc_now(),
+                error=f"worker failed with exit code {return_code}\n{worker_error}",
+            )
+            self._add_event("node.failed", f"Worker failed for {node_id}", node_id=node_id, details={"exit_code": return_code})
+            return self.nodes[node_id]
+
         thread_id = result_payload.get("thread_id")
         self.state.update_node(
             node_id,
@@ -328,23 +374,17 @@ Background information:
         except Exception as exc:
             raise RuntimeError(f"Unable to parse metric file {self.metric_path}: {metric_text!r}") from exc
 
-    def is_allowed_change(self, rel_path: str) -> bool:
-        for allowed in [*self.edit_paths, self.metric_path, *self.allow_paths]:
-            if rel_path == allowed or rel_path.startswith(f"{allowed}/"):
-                return True
-        return False
-
     def evaluate_node(self, node: NodeRecord) -> NodeRecord:
         worktree = Path(node.worktree_path)
         files = changed_files(worktree)
         self.state.update_node(node.node_id, changed_files=files)
-        disallowed = [path for path in files if not self.is_allowed_change(path)]
-        if disallowed:
+        effective_files = [path for path in files if path != self.metric_path]
+        if not effective_files:
             self.state.update_node(
                 node.node_id,
-                status="invalid",
+                status="failed",
                 finished_at=utc_now(),
-                error=f"disallowed file edits: {disallowed}",
+                error="node produced no code changes",
             )
             return self.nodes[node.node_id]
 
@@ -385,7 +425,7 @@ Background information:
 
         commit_sha = commit_allowed_changes(
             worktree,
-            [path for path in files if path != self.metric_path],
+            effective_files,
             f"codopt: candidate {node.node_id}",
         )
         if commit_sha is None:
