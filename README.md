@@ -27,3 +27,14 @@ If an agent survives, its git worktree becomes a proper branch and non surviving
 One potential issue with this is that there could tendancy towards less diverse code since after the first pass, the majority of the winners could be from the top agent from the last round. Eventually a new optional --diversity flag will be added which adds the option to have a modular diversity metric which can then be used to bin the nodes and choose best performers with bins in mind.
 
 Codopt aims to be as modular as possible to support any software written in any langugage as long as the environemnt it is called in can run the command given and the source code saves the metric to metric_file.
+
+## Visualization
+
+For fun when you run codopt it will open a web-ui to see what is going on. 
+There you can see a graph of the starting metric and a live view of the inside of the metric file as time progresses.
+If you click on one of the nodes in the graph (you can also click on the nodes in the legend of the graph since at the start the agents will be very close), you can see the loggings of the conversation to see what the different agents are doing on their race.
+When a node is selecting there is also a button in the top right of the session view to prune the agent which you may want to do early if u dont like the way it's progressing.
+
+## Example
+
+An example of what a very simple directory that can be used for codopt is found in `./example/`.
