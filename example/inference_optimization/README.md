@@ -10,6 +10,6 @@ The target repo was a Haskell llama2 inference implementation. The skill:
 - ran a bounded tournament with `codopt run`
 - inspected the winner and applied the winning `Run.hs` diff back to the original repo
 
-The transcript is in [codex_optimize_inference.txt](./example/inference_optimization/codex_optimize_attempt_7.txt), and the video of the process unfolding is on the main README.MD.
+The transcript is in [codex_optimize_inference.txt](./example/inference_optimization/codex_optimize_inference.txt), and the video of the process unfolding is on the main README.MD.
 
 Also, to make it easy to understand I uploaded the repo that codopt made to [Github](https://github.com/RohanAdwankar/optimized-llama2.hs) and then merged the high performing branch. 

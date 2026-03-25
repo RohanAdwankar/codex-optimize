@@ -27,22 +27,10 @@ The core idea is to use the Codex SDK to optimize more deterministically than us
 
 [`example/life`](./example/life) contains a Conway's Game of Life challenge chosen to be optimizable but not one-shottable.
 
-- `life.py`: naive implementation
-- `benchmark.py`: writes `metric.json`
-- `tests.py`: exact correctness checks
-- `INFO.md`: instructions for the agent
-- `Dockerfile`: optional sample runtime image override
-
 Install the CLI locally for testing:
 
 ```bash
 uv tool install /path/to/codex-optimize
-```
-
-Or run it directly from a local checkout without publishing:
-
-```bash
-uvx --from /path/to/codex-optimize codopt --help
 ```
 
 View the result of my run in the UI :
@@ -55,23 +43,21 @@ Alternatively you can run it yourself.
 Run:
 ```bash
 codopt run \
-  --edit example/life/life.py \
-  --metric example/life/metric.json \
-  --metric-key score \
-  --command "python3 example/life/benchmark.py" \
-  --branch 3 \
-  --time 120 \
-  --info example/life/INFO.md \
-  --max-agents 6 \
-  --test "python3 example/life/tests.py" \
-  --rounds 2
+  --edit example/life/life.py --metric example/life/metric.json --metric-key score --command "python3 example/life/benchmark.py" \
+  --branch 3 --time 120 --info example/life/INFO.md --max-agents 6 --test "python3 example/life/tests.py" --docker-image codopt-life:latest --rounds 2
 ```
 
 Read more about this run in the result's [README.MD](example/life_result/README.md).
 
 An alternative option to running the program yourself is asking your agent to use it! 
 If this is your goal there is an [optimize](skills/optimize/SKILL.md) skill folder you can copy into `~/.codex/skills/optimize` and restart Codex.
- 
+
+Here is a demo video of Codex using the codopt skill to generate a 33% optimization of token per second in LLM inference.
+
+https://github.com/user-attachments/assets/f34ac402-c19c-4ced-9215-5ff9f2a0e889
+
+Read more about that [here](example/inference_optimization) or view the repo codopt created [here](https://github.com/RohanAdwankar/codex-optimize).
+
 ## CLI Flags
 
 - `--edit`: repeatable file or directory the agent may edit
@@ -93,14 +79,6 @@ If this is your goal there is an [optimize](skills/optimize/SKILL.md) skill fold
 - `--rounds`: tournament depth
 - `--allow-path`: repeatable extra writable path
 - `--keep-worktrees`: keep worktree directories after completion
-
-There is also a validation mode:
-
-```bash
-codopt validate ...
-```
-
-Use it before the first full run. It checks host prerequisites, benchmark/test success on the host clone, benchmark/test success inside Docker, and metric parsing.
 
 ### Metric Key 
 
@@ -137,26 +115,6 @@ For a new repo, prefer this sequence:
 2. Run `codopt validate ...`.
 3. If validation fails in the auto-generated image, only then add `--dockerfile` or `--docker-image`.
 4. Once validation succeeds, run the full bounded tournament with `codopt run ...`.
-
-If you explicitly want to ignore local edits and optimize committed `HEAD` only, add `--source-mode head`.
-
-If you do not want to add helper files to the repo yet, use:
-
-- `--command-file`
-- `--test-file`
-- `--info-text`
-
-Those are the easiest way to do a first exploratory run without committing setup files into the target repository. Repo-local command files run in the cloned repo directly, so sibling fixtures in the same harness directory can come along with the snapshot baseline. External command files are copied into the run root and executed with `sh -eu`.
-
-Command-file rules:
-
-- assume the current working directory is the cloned repo root on both host validation and container validation
-- do not hardcode `cd /workspace`
-- keep the command file self-contained, or only reference files that are already tracked in the repo
-- do not make the command file depend on extra `/tmp/*.py` helper files unless you inline them into the script or commit them into the repo first
-- for compiled repos, build into a hidden repo-local path like `./.codopt-build/` and write the executable there too
-- do not rely on a top-level binary like `./runhs` or `/tmp/mybench`; stale host-built binaries can mask container failures
-- for Haskell specifically, prefer `-odir ./.codopt-build/obj -hidir ./.codopt-build/hi` and remove any old benchmark binary before rebuilding
 
 Starter scaffolding:
 
