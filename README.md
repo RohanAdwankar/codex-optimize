@@ -1,5 +1,7 @@
 # codex-optimize
 
+https://github.com/user-attachments/assets/7646dab7-d12a-4574-a493-9d130e9042e9
+
 Optimize any software with Codex. 
 
 `codopt` clones your repository into a run directory, fans out candidate branches with git worktrees, runs one Codex agent per branch in its own Docker container, and evaluates each branch with a benchmark command plus a correctness test command. Surviving branches fork again in later rounds.
