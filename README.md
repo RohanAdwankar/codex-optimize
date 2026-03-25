@@ -27,10 +27,10 @@ The core idea is to use the Codex SDK to optimize more deterministically than us
 
 [`example/life`](./example/life) contains a Conway's Game of Life challenge chosen to be optimizable but not one-shottable.
 
-Install the CLI locally for testing:
+Install the CLI:
 
 ```bash
-uv tool install /path/to/codex-optimize
+uv tool install codex-optimize 
 ```
 
 View the result of my run in the UI :
