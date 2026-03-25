@@ -2,12 +2,22 @@
 
 This folder contains a saved `codopt` run for the sample Conway's Game of Life benchmark.
 
-It is packaged in two forms:
+## How To View The Saved Result In The Web UI
 
-- [run](/Users/rohanadwankar/codex-optimize/example/life_result/run): the UI-facing artifact bundle with logs, saved state, copied files, and precomputed diffs
-- [run.bundle](/Users/rohanadwankar/codex-optimize/example/life_result/run.bundle): a real Git bundle containing the run repo's commits and branches
+Run:
 
-That layout is intentional. It avoids checking a nested `.git` directory into the main repo, while still letting users reconstruct the real run repo locally.
+```bash
+uv run --with fastapi --with uvicorn python main.py ui --run-root example/life_result/run 
+```
+
+Then open `http://127.0.0.1:8780`.
+
+The UI lets you inspect:
+
+- the branch tree on the score-vs-time graph
+- parsed agent logs
+- raw `agent.jsonl` logs
+- the net Git diff for each node commit
 
 ## What This Benchmark Is
 
@@ -46,28 +56,23 @@ This is the general integration pattern for another codebase:
 - provide a short info file that explains the task and constraints
 - make sure everything runs inside a Docker image with the required toolchain
 
-## How To View The Saved Result In The Web UI
+## What This Specific Run Did
 
-Run:
+The saved run is [run-a76l0x](/Users/rohanadwankar/codex-optimize/example/life_result/run/run_state.json).
 
-```bash
-uv run --with fastapi --with uvicorn python main.py ui \
-  --run-root example/life_result/run \
-  --ui-port 8780
-```
+- baseline score: `1370007.93919744`
+- winning node: `r3_pr2_pr1_pbaseline_0_1_1`
+- winning score: `23967167.83435935`
+- final survivor branches:
+  - `r3-pr2-pr1-pbaseline-0-1-1`
+  - `r3-pr2-pr1-pbaseline-0-1-0`
 
-Then open `http://127.0.0.1:8780`.
-
-The UI lets you inspect:
-
-- the branch tree on the score-vs-time graph
-- parsed agent logs
-- raw `agent.jsonl` logs
-- the net Git diff for each node commit
-
-The `Git Diff` tab works from saved `.diff` files in the artifact bundle, so it does not need a live nested Git repo.
+The winner and final branch summary are in [summary.json](/Users/rohanadwankar/codex-optimize/example/life_result/run/summary.json).
+If you would like to look into how the winning optimization worked, here is a [Gemini Conversation](https://gemini.google.com/share/e65ec535cde4) where I asked it whether the succesive diffs were good ideas.
 
 ## How To Reconstruct The Real Run Repo From The Bundle
+
+The real repo which is typically produce as a result of running the algorithm was bundled so as to make it easy to handle in Github.
 
 If you want to inspect the actual Git branches and commits locally, reconstruct the repo from [run.bundle](/Users/rohanadwankar/codex-optimize/example/life_result/run.bundle):
 
@@ -83,20 +88,7 @@ That gives you a normal Git repo with the saved run branches:
 - `r3-pr2-pr1-pbaseline-0-1-0`
 - `r3-pr2-pr1-pbaseline-0-1-1`
 
-You can then run normal Git commands there such as `git log`, `git diff`, or `git checkout`.
-
-## What This Specific Run Did
-
-The saved run is [run-a76l0x](/Users/rohanadwankar/codex-optimize/example/life_result/run/run_state.json).
-
-- baseline score: `1370007.93919744`
-- winning node: `r3_pr2_pr1_pbaseline_0_1_1`
-- winning score: `23967167.83435935`
-- final survivor branches:
-  - `r3-pr2-pr1-pbaseline-0-1-1`
-  - `r3-pr2-pr1-pbaseline-0-1-0`
-
-The winner and final branch summary are in [summary.json](/Users/rohanadwankar/codex-optimize/example/life_result/run/summary.json).
+You can then run normal Git commands there such as `git log`, `git diff`, or `git checkout` to see the contents of the agent's run.
 
 ## How To Cross-Apply This To Another Repo
 
