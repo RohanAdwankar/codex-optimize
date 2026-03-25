@@ -55,6 +55,31 @@ def build_image(*, image: str, dockerfile: Path, context: Path) -> None:
         )
 
 
+def remove_image(image: str) -> None:
+    subprocess.run(
+        ["docker", "image", "rm", "-f", image],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def detect_project_kind(source_repo: Path) -> str:
+    if (source_repo / "stack.yaml").exists() or (source_repo / "cabal.project").exists():
+        return "haskell"
+    if any(source_repo.glob("*.cabal")) or any(source_repo.rglob("*.hs")):
+        return "haskell"
+    if (source_repo / "Cargo.toml").exists():
+        return "rust"
+    if (source_repo / "go.mod").exists():
+        return "go"
+    if (source_repo / "package.json").exists():
+        return "node"
+    if (source_repo / "pom.xml").exists() or (source_repo / "build.gradle").exists() or (source_repo / "build.gradle.kts").exists():
+        return "java"
+    return "python"
+
+
 def write_auto_dockerfile(source_repo: Path, dockerfile: Path) -> None:
     dockerfile.parent.mkdir(parents=True, exist_ok=True)
     rel_requirements = "requirements.txt" if (source_repo / "requirements.txt").exists() else None
@@ -64,19 +89,95 @@ def write_auto_dockerfile(source_repo: Path, dockerfile: Path) -> None:
     rel_package_lock = "package-lock.json" if (source_repo / "package-lock.json").exists() else None
     rel_cargo = "Cargo.toml" if (source_repo / "Cargo.toml").exists() else None
     rel_go = "go.mod" if (source_repo / "go.mod").exists() else None
+    project_kind = detect_project_kind(source_repo)
 
-    lines = [
-        "FROM python:3.12-slim",
-        "",
-        "RUN apt-get update \\",
-        "    && apt-get install -y --no-install-recommends git ca-certificates curl build-essential nodejs npm cargo golang-go \\",
-        "    && rm -rf /var/lib/apt/lists/*",
-        "",
-        "RUN pip install --no-cache-dir uv",
-        "",
-        "WORKDIR /opt/codopt-src",
-        "",
-    ]
+    if project_kind == "haskell":
+        lines = [
+            "FROM python:3.12-bookworm",
+            "",
+            "RUN apt-get update \\",
+            "    && apt-get install -y --no-install-recommends git ca-certificates curl build-essential ghc cabal-install xz-utils \\",
+            "    && rm -rf /var/lib/apt/lists/*",
+            "",
+            "RUN pip install --no-cache-dir uv",
+            "",
+            "WORKDIR /workspace",
+            "",
+        ]
+        dockerfile.write_text("\n".join(lines), encoding="utf-8")
+        return
+
+    if project_kind == "rust":
+        lines = [
+            "FROM rust:1-bookworm",
+            "",
+            "RUN apt-get update \\",
+            "    && apt-get install -y --no-install-recommends git ca-certificates python3 python3-pip pkg-config build-essential \\",
+            "    && rm -rf /var/lib/apt/lists/*",
+            "",
+            "RUN pip install --no-cache-dir uv",
+            "",
+            "WORKDIR /workspace",
+            "",
+        ]
+        dockerfile.write_text("\n".join(lines), encoding="utf-8")
+        return
+
+    if project_kind == "go":
+        lines = [
+            "FROM golang:1.24-bookworm",
+            "",
+            "RUN apt-get update \\",
+            "    && apt-get install -y --no-install-recommends git ca-certificates python3 python3-pip build-essential \\",
+            "    && rm -rf /var/lib/apt/lists/*",
+            "",
+            "RUN pip install --no-cache-dir uv",
+            "",
+            "WORKDIR /workspace",
+            "",
+        ]
+        dockerfile.write_text("\n".join(lines), encoding="utf-8")
+        return
+
+    if project_kind == "node":
+        lines = [
+            "FROM node:22-bookworm",
+            "",
+            "RUN apt-get update \\",
+            "    && apt-get install -y --no-install-recommends git ca-certificates python3 python3-pip build-essential \\",
+            "    && rm -rf /var/lib/apt/lists/*",
+            "",
+            "RUN pip install --no-cache-dir uv",
+            "",
+            "WORKDIR /opt/codopt-src",
+            "",
+        ]
+    elif project_kind == "java":
+        lines = [
+            "FROM eclipse-temurin:21-jdk-bookworm",
+            "",
+            "RUN apt-get update \\",
+            "    && apt-get install -y --no-install-recommends git ca-certificates python3 python3-pip build-essential \\",
+            "    && rm -rf /var/lib/apt/lists/*",
+            "",
+            "RUN pip install --no-cache-dir uv",
+            "",
+            "WORKDIR /opt/codopt-src",
+            "",
+        ]
+    else:
+        lines = [
+            "FROM python:3.12-slim",
+            "",
+            "RUN apt-get update \\",
+            "    && apt-get install -y --no-install-recommends git ca-certificates curl build-essential nodejs npm cargo golang-go \\",
+            "    && rm -rf /var/lib/apt/lists/*",
+            "",
+            "RUN pip install --no-cache-dir uv",
+            "",
+            "WORKDIR /opt/codopt-src",
+            "",
+        ]
 
     copy_targets = [path for path in (rel_requirements, rel_pyproject, rel_uv_lock, rel_package_json, rel_package_lock, rel_cargo, rel_go) if path]
     if copy_targets:
@@ -136,21 +237,18 @@ def write_auto_dockerfile(source_repo: Path, dockerfile: Path) -> None:
     dockerfile.write_text("\n".join(lines), encoding="utf-8")
 
 
-def _base_mounts(project_root: Path, run_root: Path) -> list[str]:
+def _base_mounts(run_root: Path) -> list[str]:
     return [
-        "-v",
-        f"{project_root}:{project_root}:ro",
         "-v",
         f"{run_root}:{run_root}",
     ]
 
 
-def _base_env(project_root: Path, run_root: Path) -> list[str]:
+def _base_env(runtime_root: Path, run_root: Path) -> list[str]:
     codex_home = run_root / "codex_home"
-    py_path = f"{project_root}:{project_root / 'docs/sdk/python'}:{project_root / 'docs/sdk/python/src'}"
     env = [
         "-e",
-        f"PYTHONPATH={py_path}",
+        f"PYTHONPATH={runtime_root}",
         "-e",
         f"CODEX_HOME={codex_home}",
         "-e",
@@ -163,7 +261,7 @@ def _base_env(project_root: Path, run_root: Path) -> list[str]:
     return env
 
 
-def worker_command(project_root: Path, worker_args: list[str]) -> list[str]:
+def worker_command(runtime_root: Path, worker_args: list[str]) -> list[str]:
     return [
         "uv",
         "run",
@@ -179,7 +277,7 @@ def worker_command(project_root: Path, worker_args: list[str]) -> list[str]:
         "--with",
         "typing-inspection",
         "python",
-        str(project_root / "codopt" / "worker.py"),
+        str(runtime_root / "codopt" / "worker.py"),
         *worker_args,
     ]
 
@@ -187,7 +285,7 @@ def worker_command(project_root: Path, worker_args: list[str]) -> list[str]:
 async def spawn_worker_container(
     *,
     image: str,
-    project_root: Path,
+    runtime_root: Path,
     run_root: Path,
     worktree: Path,
     container_name: str,
@@ -199,14 +297,14 @@ async def spawn_worker_container(
         "--rm",
         "--name",
         container_name,
-        *_base_mounts(project_root, run_root),
-        *_base_env(project_root, run_root),
+        *_base_mounts(run_root),
+        *_base_env(runtime_root, run_root),
         "-w",
         str(worktree),
         image,
         "sh",
         "-lc",
-        shell_join(worker_command(project_root, worker_args)),
+        shell_join(worker_command(runtime_root, worker_args)),
     ]
     return await asyncio.create_subprocess_exec(
         *command,
@@ -231,7 +329,7 @@ async def stop_container(container_name: str) -> None:
 def run_eval_container(
     *,
     image: str,
-    project_root: Path,
+    runtime_root: Path,
     run_root: Path,
     worktree: Path,
     command: str,
@@ -243,8 +341,8 @@ def run_eval_container(
             "--rm",
             "--network",
             "none",
-            *_base_mounts(project_root, run_root),
-            *_base_env(project_root, run_root),
+            *_base_mounts(run_root),
+            *_base_env(runtime_root, run_root),
             "-w",
             str(worktree),
             image,

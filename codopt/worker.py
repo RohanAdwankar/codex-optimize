@@ -8,11 +8,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from codopt._runtime_setup import ensure_runtime_package_installed, sdk_python_dir
+
 
 def ensure_sdk_paths(project_root: Path) -> None:
-    sdk_python_dir = project_root / "docs" / "sdk" / "python"
-    sdk_src_dir = sdk_python_dir / "src"
-    sdk_root = str(sdk_python_dir)
+    sdk_dir = sdk_python_dir(project_root)
+    sdk_src_dir = sdk_dir / "src"
+    sdk_root = str(sdk_dir)
     sdk_src = str(sdk_src_dir)
     for candidate in (sdk_root, sdk_src):
         if candidate not in sys.path:
@@ -46,11 +48,10 @@ async def main_async() -> None:
     project_root = Path(args.project_root).resolve()
     ensure_sdk_paths(project_root)
 
-    from _runtime_setup import ensure_runtime_package_installed
     from codex_app_server import AppServerConfig, AskForApproval, AsyncCodex, SandboxMode, SandboxPolicy, TextInput
     from codex_app_server.client import _resolve_codex_bin
 
-    ensure_runtime_package_installed(sys.executable, project_root / "docs" / "sdk" / "python")
+    ensure_runtime_package_installed(sys.executable, sdk_python_dir(project_root))
     codex_bin = _resolve_codex_bin(AppServerConfig())
     approval_policy = AskForApproval.model_validate("never")
     thread_sandbox = SandboxMode.danger_full_access

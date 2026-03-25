@@ -32,11 +32,54 @@ def clone_source_repo(source_repo: Path, target_repo: Path) -> None:
         raise RuntimeError(f"git clone failed\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}")
 
 
+def configure_user(repo: Path, *, name: str = "codopt", email: str = "codopt@example.com") -> None:
+    run_git(repo, ["config", "user.name", name])
+    run_git(repo, ["config", "user.email", email])
+
+
+def changed_paths_against_head(repo: Path) -> list[str]:
+    output = run_git(repo, ["diff", "--name-only", "HEAD", "--"])
+    return [line for line in output.splitlines() if line]
+
+
+def is_tracked(repo: Path, rel_path: str) -> bool:
+    result = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", "--", rel_path],
+        cwd=repo,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def untracked_files_under(repo: Path, rel_dir: str) -> list[str]:
+    root = (repo / rel_dir).resolve()
+    if not root.exists() or not root.is_dir():
+        return []
+    files: list[str] = []
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        rel_path = path.resolve().relative_to(repo.resolve()).as_posix()
+        if not is_tracked(repo, rel_path):
+            files.append(rel_path)
+    return files
+
+
+def commit_all(repo: Path, message: str) -> str | None:
+    run_git(repo, ["add", "-A"])
+    status = run_git(repo, ["status", "--porcelain"])
+    if not status:
+        return None
+    run_git(repo, ["commit", "-m", message])
+    return current_head(repo)
+
+
 def init_worktree(repo_root: Path, source_ref: str, branch_name: str, worktree_path: Path) -> None:
     worktree_path.parent.mkdir(parents=True, exist_ok=True)
     run_git(repo_root, ["worktree", "add", "--force", "-b", branch_name, str(worktree_path), source_ref])
-    run_git(worktree_path, ["config", "user.name", "codopt"])
-    run_git(worktree_path, ["config", "user.email", "codopt@example.com"])
+    configure_user(worktree_path)
 
 
 def current_head(repo: Path) -> str:

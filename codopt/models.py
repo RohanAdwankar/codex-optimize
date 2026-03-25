@@ -14,6 +14,8 @@ def utc_now() -> str:
 class RunConfig:
     run_id: str
     source_repo: str
+    effective_source_repo: str
+    source_mode: str
     run_root: str
     repo_clone: str
     event_log: str

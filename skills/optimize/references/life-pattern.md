@@ -25,7 +25,7 @@ Mapping:
 Representative run command:
 
 ```bash
-uv run --with fastapi --with uvicorn python main.py \
+codopt validate \
   --edit example/life/life.py \
   --metric example/life/metric.json \
   --metric-key score \
@@ -35,9 +35,10 @@ uv run --with fastapi --with uvicorn python main.py \
   --info example/life/INFO.md \
   --max-agents 4 \
   --test "python3 example/life/tests.py" \
-  --docker-image codopt-life:latest \
   --max-depth 3
 ```
+
+Then run the full search with the same flags, replacing `codopt validate` with `codopt run`.
 
 Use this as the template when adapting another repo:
 
@@ -46,3 +47,6 @@ Use this as the template when adapting another repo:
 - your tests replace `tests.py`
 - your agent brief replaces `INFO.md`
 - your Docker image replaces `codopt-life:latest`
+- if your repo already has local edits, those edits are the baseline unless the user says otherwise
+- `codopt` snapshots those local edits automatically by default; you do not need a temp repo workaround
+- if your benchmark/test need a host-only toolchain that the auto-image lacks, add a Docker override immediately instead of retrying the auto-image path

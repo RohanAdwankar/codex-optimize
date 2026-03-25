@@ -6,6 +6,8 @@ Optimize any software with the Codex SDK.
 
 `codopt` clones your repository into a run directory, fans out candidate branches with git worktrees, runs one Codex agent per branch in its own Docker container, and evaluates each branch with a benchmark command plus a correctness test command. Surviving branches fork again in later rounds.
 
+By default, `codopt` snapshots your current working tree into a disposable internal repo first, so local tracked edits are part of the optimization baseline even if they are not committed yet.
+
 ## Why?
 
 One appraoch to AI assisted software optimization is to just point it to some code and then tell it to optimize it.
@@ -31,16 +33,28 @@ The core idea is to use the Codex SDK to optimize more deterministically than us
 - `INFO.md`: instructions for the agent
 - `Dockerfile`: optional sample runtime image override
 
+Install the CLI locally for testing:
+
+```bash
+uv tool install /path/to/codex-optimize
+```
+
+Or run it directly from a local checkout without publishing:
+
+```bash
+uvx --from /path/to/codex-optimize codopt --help
+```
+
 View the result of my run in the UI :
 ```bash
-uv run --with fastapi --with uvicorn python main.py ui --run-root example/life_result/run
+codopt ui --run-root example/life_result/run
 ```
 
 Alternatively you can run it yourself.
 
 Run:
 ```bash
-python3 main.py \
+codopt run \
   --edit example/life/life.py \
   --metric example/life/metric.json \
   --metric-key score \
@@ -56,7 +70,7 @@ python3 main.py \
 Read more about this run in the result's [README.MD](example/life_result/README.md).
 
 An alternative option to running the program yourself is asking your agent to use it! 
-If this is your goal there is an [optimize](skills/optimize/SKILL.md) skill folder you can copy into your .agent directory and have your agent install and run the program.
+If this is your goal there is an [optimize](skills/optimize/SKILL.md) skill folder you can copy into `~/.codex/skills/optimize` and restart Codex.
  
 ## CLI Flags
 
@@ -65,16 +79,28 @@ If this is your goal there is an [optimize](skills/optimize/SKILL.md) skill fold
 - `--metric-key`: JSON key to read when the metric file is JSON, default `score`
 - `--lower-is-better`: invert the parsed metric value for ranking
 - `--command`: benchmark command
+- `--command-file`: path to a shell snippet file executed with `sh -eu`; repo-local files run from the cloned repo path, external files are copied into the run root
 - `--branch`: children per surviving node
 - `--time`: per-node Codex time budget in seconds
-- `--info`: background context given to the agent
+- `--info` / `--info-file`: background context file given to the agent, may be outside the repo
+- `--info-text`: inline background context for the agent
 - `--max-agents`: active-node cap used to decide survivor count
 - `--test`: correctness test command
+- `--test-file`: path to a shell snippet file executed with `sh -eu`; repo-local files run from the cloned repo path, external files are copied into the run root
 - `--docker-image`: optional prebuilt container image for agent and evaluation runs
 - `--dockerfile`: optional Dockerfile to build and use for agent and evaluation runs
+- `--source-mode`: `working-tree` (default) snapshots the current repo state; `head` uses Git `HEAD` only
 - `--rounds`: tournament depth
 - `--allow-path`: repeatable extra writable path
 - `--keep-worktrees`: keep worktree directories after completion
+
+There is also a validation mode:
+
+```bash
+codopt validate ...
+```
+
+Use it before the first full run. It checks host prerequisites, benchmark/test success on the host clone, benchmark/test success inside Docker, and metric parsing.
 
 ### Metric Key 
 
@@ -99,5 +125,43 @@ Important setup notes:
 - run `codopt` from the root of the Git repo you want to optimize
 - Docker must be running
 - `codopt` seeds a run-local `CODEX_HOME` from your host `~/.codex`, so you need to already be authenticated before starting
-- by default `codopt` auto-generates and builds a runtime image for the repo
+- by default `codopt` auto-generates and builds a runtime image for the repo, with special handling for common project types like Python, Node, Rust, Go, Java, and Haskell
 - if you override with `--docker-image` or `--dockerfile`, the resulting image must contain `python3`, `git`, and `uv`
+- `codopt` removes the ephemeral images it builds itself after `validate` and `run`, so repeated runs do not keep piling up `codopt-auto-*` images
+
+### First-Run Pattern
+
+For a new repo, prefer this sequence:
+
+1. Wire a benchmark command, test command, and info text or info file.
+2. Run `codopt validate ...`.
+3. If validation fails in the auto-generated image, only then add `--dockerfile` or `--docker-image`.
+4. Once validation succeeds, run the full bounded tournament with `codopt run ...`.
+
+If you explicitly want to ignore local edits and optimize committed `HEAD` only, add `--source-mode head`.
+
+If you do not want to add helper files to the repo yet, use:
+
+- `--command-file`
+- `--test-file`
+- `--info-text`
+
+Those are the easiest way to do a first exploratory run without committing setup files into the target repository. Repo-local command files run in the cloned repo directly, so sibling fixtures in the same harness directory can come along with the snapshot baseline. External command files are copied into the run root and executed with `sh -eu`.
+
+Command-file rules:
+
+- assume the current working directory is the cloned repo root on both host validation and container validation
+- do not hardcode `cd /workspace`
+- keep the command file self-contained, or only reference files that are already tracked in the repo
+- do not make the command file depend on extra `/tmp/*.py` helper files unless you inline them into the script or commit them into the repo first
+- for compiled repos, build into a hidden repo-local path like `./.codopt-build/` and write the executable there too
+- do not rely on a top-level binary like `./runhs` or `/tmp/mybench`; stale host-built binaries can mask container failures
+- for Haskell specifically, prefer `-odir ./.codopt-build/obj -hidir ./.codopt-build/hi` and remove any old benchmark binary before rebuilding
+
+Starter scaffolding:
+
+```bash
+codopt scaffold --output-dir codopt_scaffold
+```
+
+This writes starter `benchmark.sh`, `test.sh`, `Dockerfile`, and `INFO.md` files you can adapt for a new repo.

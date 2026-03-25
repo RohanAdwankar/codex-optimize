@@ -1,0 +1,4 @@
+interface:
+  display_name: "Optimize"
+  short_description: "Set up and run codex-optimize on the current repository"
+  default_prompt: "Use codex-optimize to wire up this repository for optimization, run a bounded search, inspect the winner, and apply the winning diff back to the working repo."

@@ -1,13 +1,44 @@
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"
+
 [project]
 name = "codex-optimize"
 version = "0.1.0"
 description = "Optimize a software metric with Codex, git worktrees, and Docker"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [
+    { name = "Rohan Adwankar", email = "rohan.adwankar@gmail.com" },
+]
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn>=0.30.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/RohanAdwankar/codex-optimize"
+Repository = "https://github.com/RohanAdwankar/codex-optimize"
+
 [project.scripts]
 codopt = "codopt.cli:main"
+
+[tool.hatch.build]
+exclude = [
+    "**/__pycache__/**",
+    "**/*.pyc",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["codopt"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "codopt/**",
+    "main.py",
+    "README.md",
+    "pyproject.toml",
+    "docs/sdk/python/**",
+    "skills/**",
+]
