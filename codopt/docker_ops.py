@@ -33,6 +33,109 @@ def preflight_image(image: str) -> None:
         )
 
 
+def build_image(*, image: str, dockerfile: Path, context: Path) -> None:
+    result = subprocess.run(
+        [
+            "docker",
+            "build",
+            "-t",
+            image,
+            "-f",
+            str(dockerfile),
+            str(context),
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Failed to build Docker image {image!r} from {dockerfile}.\n"
+            f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        )
+
+
+def write_auto_dockerfile(source_repo: Path, dockerfile: Path) -> None:
+    dockerfile.parent.mkdir(parents=True, exist_ok=True)
+    rel_requirements = "requirements.txt" if (source_repo / "requirements.txt").exists() else None
+    rel_pyproject = "pyproject.toml" if (source_repo / "pyproject.toml").exists() else None
+    rel_uv_lock = "uv.lock" if (source_repo / "uv.lock").exists() else None
+    rel_package_json = "package.json" if (source_repo / "package.json").exists() else None
+    rel_package_lock = "package-lock.json" if (source_repo / "package-lock.json").exists() else None
+    rel_cargo = "Cargo.toml" if (source_repo / "Cargo.toml").exists() else None
+    rel_go = "go.mod" if (source_repo / "go.mod").exists() else None
+
+    lines = [
+        "FROM python:3.12-slim",
+        "",
+        "RUN apt-get update \\",
+        "    && apt-get install -y --no-install-recommends git ca-certificates curl build-essential nodejs npm cargo golang-go \\",
+        "    && rm -rf /var/lib/apt/lists/*",
+        "",
+        "RUN pip install --no-cache-dir uv",
+        "",
+        "WORKDIR /opt/codopt-src",
+        "",
+    ]
+
+    copy_targets = [path for path in (rel_requirements, rel_pyproject, rel_uv_lock, rel_package_json, rel_package_lock, rel_cargo, rel_go) if path]
+    if copy_targets:
+        lines.append(f"COPY {' '.join(copy_targets)} ./")
+        lines.append("")
+
+    if rel_requirements:
+        lines.extend(
+            [
+                "RUN uv pip install --system -r requirements.txt || pip install --no-cache-dir -r requirements.txt",
+                "",
+            ]
+        )
+    elif rel_pyproject:
+        lines.extend(
+            [
+                "RUN uv pip install --system . || pip install --no-cache-dir . || true",
+                "",
+            ]
+        )
+
+    if rel_package_json:
+        npm_install = "npm install"
+        if rel_package_lock:
+            npm_install = "npm ci"
+        lines.extend(
+            [
+                f"RUN {npm_install} || true",
+                'ENV PATH="/opt/codopt-src/node_modules/.bin:${PATH}"',
+                'ENV NODE_PATH="/opt/codopt-src/node_modules"',
+                "",
+            ]
+        )
+
+    if rel_cargo:
+        lines.extend(
+            [
+                "RUN cargo fetch || true",
+                "",
+            ]
+        )
+
+    if rel_go:
+        lines.extend(
+            [
+                "RUN go mod download || true",
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
+            "WORKDIR /workspace",
+            "",
+        ]
+    )
+    dockerfile.write_text("\n".join(lines), encoding="utf-8")
+
+
 def _base_mounts(project_root: Path, run_root: Path) -> list[str]:
     return [
         "-v",

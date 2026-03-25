@@ -50,11 +50,7 @@ Do not assume the target repo already contains the integration files. Inspect it
 4. A short info file:
    This explains the objective and key constraints to the agent.
 
-Also add a Docker image for the target repo. The image must provide:
-
-- `python3`
-- `git`
-- `uv`
+In most cases, do not start by writing a Dockerfile. `codopt` can auto-generate and build a runtime image by default.
 
 ## Metric File Contract
 
@@ -79,8 +75,8 @@ If lower values are better, pass `--lower-is-better`.
 2. Add or identify a benchmark entrypoint that produces a stable metric file.
 3. Add or identify correctness tests.
 4. Add an info file for the optimization task.
-5. Add a Dockerfile if the repo does not already have a suitable image.
-6. Build the Docker image.
+5. Try the default `codopt` path without `--docker-image` or `--dockerfile`.
+6. Only add a Dockerfile override if the default image path fails.
 7. Run `codopt` with conservative defaults first.
 8. Inspect the winner.
 9. Apply the winner's diff back to the current repo.
@@ -109,7 +105,6 @@ uv run --with fastapi --with uvicorn python main.py \
   --info <info-file> \
   --max-agents 4 \
   --test "<test-command>" \
-  --docker-image <image-name> \
   --max-depth 3
 ```
 
@@ -119,7 +114,39 @@ If the metric is lower-is-better, add:
 --lower-is-better
 ```
 
+Only add one of these overrides when needed:
+
+```bash
+--docker-image <prebuilt-image>
+```
+
+```bash
+--dockerfile <path-to-dockerfile>
+```
+
 Do not waste time on a huge search before proving the setup works.
+
+## When A Docker Override Is Actually Needed
+
+The default auto-image path is usually enough if the benchmark and test commands are ordinary repo-local commands.
+
+Add a Docker override only when the default image build or container run fails because the repo depends on undeclared environment details such as:
+
+- system packages or native libraries the auto image does not include
+- unusual build steps that are not inferable from the repo files
+- private or company-specific base images
+- toolchains that need a very specific version or installation method
+- services, drivers, or runtime components that need explicit setup
+
+This is not about programming language. It is about environment specificity.
+
+If you add a Docker override, the resulting image must include:
+
+- `python3`
+- `git`
+- `uv`
+
+And it should also include whatever the benchmark and test commands need in order to run successfully inside the container.
 
 ## Getting The Optimized Code Back
 

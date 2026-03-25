@@ -8,7 +8,7 @@ import shutil
 import string
 from pathlib import Path
 
-from .docker_ops import preflight_image, run_eval_container, spawn_worker_container, stop_container
+from .docker_ops import build_image, preflight_image, run_eval_container, spawn_worker_container, stop_container, write_auto_dockerfile
 from .git_ops import (
     changed_files,
     clone_source_repo,
@@ -68,7 +68,7 @@ class CodoptOrchestrator:
             max_agents=args.max_agents,
             rounds=args.rounds,
             time_limit_seconds=args.time,
-            docker_image=args.docker_image,
+            docker_image=args.docker_image or "",
             model=args.model,
             ui_port=args.ui_port,
             keep_worktrees=args.keep_worktrees,
@@ -76,6 +76,7 @@ class CodoptOrchestrator:
         self.state = StateStore(self.config)
         self.nodes: dict[str, NodeRecord] = {}
         self.baseline_ref = ""
+        self.runtime_image = ""
 
     def _normalize_repo_relative(self, path: Path) -> str:
         resolved = (self.source_repo / path).resolve() if not path.is_absolute() else path.resolve()
@@ -90,10 +91,28 @@ class CodoptOrchestrator:
         clone_source_repo(self.source_repo, self.repo_clone)
         self.baseline_ref = current_ref(self.repo_clone)
         self._seed_codex_home()
-        preflight_image(self.args.docker_image)
+        self.runtime_image = self._resolve_runtime_image()
+        self.config.docker_image = self.runtime_image
+        preflight_image(self.runtime_image)
         start_ui_server(self.state_file, self.control_dir, self.args.ui_port, open_browser=not self.args.no_open_ui)
         self.state.set_meta(status="prepared")
-        self._add_event("run.prepared", "Prepared run root and UI")
+        self._add_event("run.prepared", "Prepared run root and UI", details={"docker_image": self.runtime_image})
+
+    def _resolve_runtime_image(self) -> str:
+        if self.args.docker_image and self.args.dockerfile:
+            raise RuntimeError("pass at most one of --docker-image or --dockerfile")
+        if self.args.docker_image:
+            return self.args.docker_image
+
+        image = f"codopt-auto-{self.run_id}"
+        dockerfile = self.run_root / "auto.Dockerfile"
+        if self.args.dockerfile:
+            source_dockerfile = (self.source_repo / self.args.dockerfile).resolve() if not Path(self.args.dockerfile).is_absolute() else Path(self.args.dockerfile).resolve()
+            shutil.copy2(source_dockerfile, dockerfile)
+        else:
+            write_auto_dockerfile(self.source_repo, dockerfile)
+        build_image(image=image, dockerfile=dockerfile, context=self.source_repo)
+        return image
 
     def _seed_codex_home(self) -> None:
         host_codex_home = Path.home() / ".codex"
@@ -252,7 +271,7 @@ Background information:
         container_name = f"codopt-{self.run_id}-{branch_name}"[:63]
         self.state.update_node(node_id, container_name=container_name)
         proc = await spawn_worker_container(
-            image=self.args.docker_image,
+            image=self.runtime_image,
             project_root=self.project_root,
             run_root=self.run_root,
             worktree=worktree_path,
@@ -344,7 +363,7 @@ Background information:
     def evaluate_baseline(self) -> tuple[float, str]:
         restore_file_from_commit(self.repo_clone, self.repo_clone, current_head(self.repo_clone), self.metric_path)
         code, _out, err = run_eval_container(
-            image=self.args.docker_image,
+            image=self.runtime_image,
             project_root=self.project_root,
             run_root=self.run_root,
             worktree=self.repo_clone,
@@ -356,7 +375,7 @@ Background information:
         score = self.parse_metric(metric_text)
         restore_file_from_commit(self.repo_clone, self.repo_clone, current_head(self.repo_clone), self.metric_path)
         code, _out, err = run_eval_container(
-            image=self.args.docker_image,
+            image=self.runtime_image,
             project_root=self.project_root,
             run_root=self.run_root,
             worktree=self.repo_clone,
@@ -400,7 +419,7 @@ Background information:
 
         restore_file_from_commit(self.repo_clone, worktree, node.trusted_commit, self.metric_path)
         code, stdout, stderr = run_eval_container(
-            image=self.args.docker_image,
+            image=self.runtime_image,
             project_root=self.project_root,
             run_root=self.run_root,
             worktree=worktree,

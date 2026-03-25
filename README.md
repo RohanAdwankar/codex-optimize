@@ -2,7 +2,7 @@
 
 https://github.com/user-attachments/assets/7646dab7-d12a-4574-a493-9d130e9042e9
 
-Optimize any software with Codex. 
+Optimize any software with the Codex SDK. 
 
 `codopt` clones your repository into a run directory, fans out candidate branches with git worktrees, runs one Codex agent per branch in its own Docker container, and evaluates each branch with a benchmark command plus a correctness test command. Surviving branches fork again in later rounds.
 
@@ -29,7 +29,7 @@ The core idea is to use the Codex SDK to optimize more deterministically than us
 - `benchmark.py`: writes `metric.json`
 - `tests.py`: exact correctness checks
 - `INFO.md`: instructions for the agent
-- `Dockerfile`: sample runtime image
+- `Dockerfile`: optional sample runtime image override
 
 View the result of my run in the UI :
 ```bash
@@ -37,14 +37,10 @@ uv run --with fastapi --with uvicorn python main.py ui --run-root example/life_r
 ```
 
 Alternatively you can run it yourself.
-First build the sample image:
-```bash
-docker build -t codopt-life:latest example/life
-```
 
-Then run:
+Run:
 ```bash
-python main.py \
+python3 main.py \
   --edit example/life/life.py \
   --metric example/life/metric.json \
   --metric-key score \
@@ -54,7 +50,6 @@ python main.py \
   --info example/life/INFO.md \
   --max-agents 6 \
   --test "python3 example/life/tests.py" \
-  --docker-image codopt-life:latest \
   --rounds 2
 ```
 
@@ -75,7 +70,8 @@ If this is your goal there is an [optimize](skills/optimize/SKILL.md) skill fold
 - `--info`: background context given to the agent
 - `--max-agents`: active-node cap used to decide survivor count
 - `--test`: correctness test command
-- `--docker-image`: required container image for agent and evaluation runs
+- `--docker-image`: optional prebuilt container image for agent and evaluation runs
+- `--dockerfile`: optional Dockerfile to build and use for agent and evaluation runs
 - `--rounds`: tournament depth
 - `--allow-path`: repeatable extra writable path
 - `--keep-worktrees`: keep worktree directories after completion
@@ -102,5 +98,6 @@ Important setup notes:
 
 - run `codopt` from the root of the Git repo you want to optimize
 - Docker must be running
-- the Docker image you pass to `--docker-image` must contain `python3`, `git`, and `uv`
 - `codopt` seeds a run-local `CODEX_HOME` from your host `~/.codex`, so you need to already be authenticated before starting
+- by default `codopt` auto-generates and builds a runtime image for the repo
+- if you override with `--docker-image` or `--dockerfile`, the resulting image must contain `python3`, `git`, and `uv`

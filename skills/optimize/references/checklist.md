@@ -17,7 +17,9 @@ Use this checklist when wiring a new repo into `codopt`.
 - make sure the benchmark writes one metric file
 - identify or create correctness tests
 - add an info file explaining the optimization target and constraints
-- add a Dockerfile that includes `python3`, `git`, and `uv`
+- prefer the default auto-image path first
+- only add a Dockerfile override if the auto-image path fails
+- if you add a Dockerfile override, include `python3`, `git`, and `uv`
 
 ## First Run Checks
 
