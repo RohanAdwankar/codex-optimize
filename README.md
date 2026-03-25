@@ -47,6 +47,7 @@ Then run:
 python main.py \
   --edit example/life/life.py \
   --metric example/life/metric.json \
+  --metric-key score \
   --command "python3 example/life/benchmark.py" \
   --branch 3 \
   --time 120 \
@@ -57,28 +58,17 @@ python main.py \
   --rounds 2
 ```
 
-Read more about it in the result [README.MD](example/life_result/README.md).
+Read more about this run in the result's [README.MD](example/life_result/README.md).
 
-## CLI
-
-```bash
-python main.py \
-  --edit example/life/life.py \
-  --metric example/life/metric.json \
-  --command "python3 example/life/benchmark.py" \
-  --branch 3 \
-  --time 120 \
-  --info example/life/INFO.md \
-  --max-agents 6 \
-  --test "python3 example/life/tests.py" \
-  --docker-image codopt-life:latest \
-  --rounds 2
-```
-
-Flags:
+An alternative option to running the program yourself is asking your agent to use it! 
+If this is your goal there is an [optimize](skills/optimize/SKILL.md) skill folder you can copy into your .agent directory and have your agent install and run the program.
+ 
+## CLI Flags
 
 - `--edit`: repeatable file or directory the agent may edit
 - `--metric`: metric file written by the benchmark command
+- `--metric-key`: JSON key to read when the metric file is JSON, default `score`
+- `--lower-is-better`: invert the parsed metric value for ranking
 - `--command`: benchmark command
 - `--branch`: children per surviving node
 - `--time`: per-node Codex time budget in seconds
@@ -89,3 +79,28 @@ Flags:
 - `--rounds`: tournament depth
 - `--allow-path`: repeatable extra writable path
 - `--keep-worktrees`: keep worktree directories after completion
+
+### Metric Key 
+
+Your benchmark command does not need to match the Life example , but it does need to produce one metric file that `codopt` can parse:
+- if the metric file is plain text, it must contain a single numeric value
+- if the metric file is JSON, `codopt` reads one numeric field from it
+- by default that JSON field is `score` unless a metric-key flag is passed
+- by default higher values are treated as better unless the lower-is-better flag is passed
+
+### Requirements
+
+Before running `codopt`, you need:
+
+- `git`
+- `docker`
+- `uv`
+- Python 3 on the host
+- an existing Codex login on the host in `~/.codex`
+
+Important setup notes:
+
+- run `codopt` from the root of the Git repo you want to optimize
+- Docker must be running
+- the Docker image you pass to `--docker-image` must contain `python3`, `git`, and `uv`
+- `codopt` seeds a run-local `CODEX_HOME` from your host `~/.codex`, so you need to already be authenticated before starting

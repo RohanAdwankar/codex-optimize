@@ -13,6 +13,8 @@ def build_run_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Optimize a metric with Codex + git worktrees + Docker")
     parser.add_argument("--edit", action="append", required=True, help="File or directory the agent may edit")
     parser.add_argument("--metric", required=True, help="Metric file written by the benchmark command")
+    parser.add_argument("--metric-key", default="score", help="JSON key to read from the metric file when the metric file is JSON")
+    parser.add_argument("--lower-is-better", action="store_true", help="Treat lower metric values as better; codopt will invert them for ranking")
     parser.add_argument("--command", required=True, help="Benchmark command that produces the metric file")
     parser.add_argument("--branch", type=int, required=True, help="Children per surviving node")
     parser.add_argument("--time", type=int, required=True, help="Per-node agent time budget in seconds")

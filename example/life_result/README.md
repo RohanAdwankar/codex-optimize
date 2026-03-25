@@ -56,6 +56,14 @@ This is the general integration pattern for another codebase:
 - provide a short info file that explains the task and constraints
 - make sure everything runs inside a Docker image with the required toolchain
 
+The metric file does not have to look exactly like the Life example. The current parser supports:
+
+- plain text containing one numeric value
+- JSON containing one numeric field, default key `score`
+
+If your metric lives under a different JSON key, use `--metric-key`.
+If lower numbers are better, use `--lower-is-better`.
+
 ## What This Specific Run Did
 
 The saved run is [run-a76l0x](/Users/rohanadwankar/codex-optimize/example/life_result/run/run_state.json).

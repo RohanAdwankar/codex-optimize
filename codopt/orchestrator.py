@@ -60,6 +60,8 @@ class CodoptOrchestrator:
             edit_paths=self.edit_paths,
             allow_paths=self.allow_paths,
             metric_path=self.metric_path,
+            metric_key=args.metric_key,
+            lower_is_better=args.lower_is_better,
             benchmark_command=args.command,
             test_command=args.test,
             branch_factor=args.branch,
@@ -369,10 +371,18 @@ Background information:
         try:
             if stripped.startswith("{"):
                 payload = json.loads(stripped)
-                return float(payload["score"])
-            return float(stripped)
+                raw_value = float(payload[self.args.metric_key])
+            else:
+                raw_value = float(stripped)
+            return -raw_value if self.args.lower_is_better else raw_value
         except Exception as exc:
-            raise RuntimeError(f"Unable to parse metric file {self.metric_path}: {metric_text!r}") from exc
+            if stripped.startswith("{"):
+                detail = f"expected JSON key {self.args.metric_key!r}"
+            else:
+                detail = "expected a plain numeric value"
+            raise RuntimeError(
+                f"Unable to parse metric file {self.metric_path}: {detail}. Raw contents: {metric_text!r}"
+            ) from exc
 
     def evaluate_node(self, node: NodeRecord) -> NodeRecord:
         worktree = Path(node.worktree_path)

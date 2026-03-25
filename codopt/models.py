@@ -22,6 +22,8 @@ class RunConfig:
     edit_paths: list[str]
     allow_paths: list[str]
     metric_path: str
+    metric_key: str
+    lower_is_better: bool
     benchmark_command: str
     test_command: str
     branch_factor: int
