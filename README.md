@@ -63,7 +63,7 @@ Read more about that [here](example/inference_optimization) or view the repo cod
 - `--edit`: repeatable file or directory the agent may edit
 - `--metric`: metric file written by the benchmark command
 - `--metric-key`: JSON key to read when the metric file is JSON, default `score`
-- `--lower-is-better`: invert the parsed metric value for ranking
+- `--lower-is-better`: rank smaller metric values ahead of larger ones
 - `--command`: benchmark command
 - `--command-file`: path to a shell snippet file executed with `sh -eu`; repo-local files run from the cloned repo path, external files are copied into the run root
 - `--branch`: children per surviving node

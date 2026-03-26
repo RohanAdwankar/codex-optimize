@@ -447,8 +447,7 @@ class CodoptOrchestrator:
                 self.state.set_meta(current_round=round_index)
                 self._add_event("round.started", f"Starting round {round_index}", details={"parents": [n.node_id for n in frontier]})
                 candidates = await self.run_round(frontier, round_index)
-                valid = [node for node in candidates if node.score is not None and node.test_passed]
-                valid.sort(key=lambda node: (node.score or float("-inf")), reverse=True)
+                valid = self._sorted_valid_candidates(candidates)
                 survivors = valid[:survivor_cap]
                 for node in candidates:
                     self.state.update_node(node.node_id, surviving=node in survivors)
@@ -456,15 +455,16 @@ class CodoptOrchestrator:
                     self._add_event("round.ended", f"Round {round_index} produced no survivors")
                     frontier = []
                     break
+                if round_index < self.args.rounds:
+                    self.cleanup_branches(keep_nodes=survivors)
                 frontier = survivors
                 self._add_event("round.ended", f"Completed round {round_index}", details={"survivors": [n.node_id for n in survivors]})
 
-            final_nodes = frontier
-            self.cleanup_branches(final_nodes)
+            final_nodes = [] if self.args.rounds == 0 else [node for node in self.nodes.values() if node.depth == self.args.rounds]
             self.state.set_meta(
                 status="completed",
                 final_branches=[node.branch_name for node in final_nodes],
-                winner_node_id=None if not final_nodes else final_nodes[0].node_id,
+                winner_node_id=None if not frontier else frontier[0].node_id,
             )
             summary = {
                 "run_id": self.run_id,
@@ -474,12 +474,12 @@ class CodoptOrchestrator:
                 "repo_clone": str(self.repo_clone),
                 "run_root": str(self.run_root),
                 "final_branches": [node.branch_name for node in final_nodes],
-                "winner": None if not final_nodes else final_nodes[0].to_dict(),
+                "winner": None if not frontier else frontier[0].to_dict(),
             }
             (self.run_root / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-            if final_nodes:
+            if frontier:
                 print(
-                    f"[codopt] run completed | winner={final_nodes[0].node_id} | score={final_nodes[0].score} | summary={self.run_root / 'summary.json'}",
+                    f"[codopt] run completed | winner={frontier[0].node_id} | score={frontier[0].score} | summary={self.run_root / 'summary.json'}",
                     flush=True,
                 )
             else:
@@ -681,10 +681,18 @@ Background information:
                 raw_value = float(payload[self.args.metric_key])
             else:
                 raw_value = float(stripped)
-            return -raw_value if self.args.lower_is_better else raw_value
+            return raw_value
         except Exception as exc:
             detail = f"expected JSON key {self.args.metric_key!r}" if stripped.startswith("{") else "expected a plain numeric value"
             raise RuntimeError(f"Unable to parse metric file {self.metric_path}: {detail}. Raw contents: {metric_text!r}") from exc
+
+    def _sorted_valid_candidates(self, candidates: list[NodeRecord]) -> list[NodeRecord]:
+        valid = [node for node in candidates if node.score is not None and node.test_passed]
+        valid.sort(
+            key=lambda node: node.score if node.score is not None else (float("inf") if self.args.lower_is_better else float("-inf")),
+            reverse=not self.args.lower_is_better,
+        )
+        return valid
 
     def evaluate_node(self, node: NodeRecord) -> NodeRecord:
         worktree = Path(node.worktree_path)
@@ -748,19 +756,20 @@ Background information:
         self.nodes[node.node_id].trusted_commit = commit_sha
         return self.nodes[node.node_id]
 
-    def cleanup_branches(self, final_nodes: list[NodeRecord]) -> None:
-        survivor_branches = {node.branch_name for node in final_nodes}
-        survivor_ids = {node.node_id for node in final_nodes}
+    def cleanup_branches(self, keep_nodes: list[NodeRecord]) -> None:
+        survivor_branches = {node.branch_name for node in keep_nodes}
+        survivor_ids = {node.node_id for node in keep_nodes}
         for node in list(self.nodes.values()):
             if node.node_id == "baseline":
+                continue
+            if node.node_id in survivor_ids:
+                self.state.update_node(node.node_id, surviving=True)
                 continue
             worktree = Path(node.worktree_path)
             if not self.args.keep_worktrees:
                 remove_worktree(self.repo_clone, worktree)
             if node.branch_name not in survivor_branches:
                 delete_branch(self.repo_clone, node.branch_name)
-            elif node.node_id in survivor_ids:
-                self.state.update_node(node.node_id, surviving=True)
 
 
 async def run_codopt(args: argparse.Namespace, project_root: Path) -> CodoptOrchestrator:
